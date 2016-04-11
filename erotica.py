@@ -7,7 +7,10 @@ from scrapy.loader.processors import Join, MapCompose, TakeFirst
 from scrapy.settings import Settings
 from scrapy.utils import log
 from twisted.internet import reactor
+
+from bs4 import BeautifulSoup
 from w3lib.html import remove_tags
+import re
 
 class StoryItem(Item):
     title  = Field()
@@ -30,6 +33,9 @@ class FFItemLoader(StoryItemLoader):
     # desc_out = Join()
     desc_in  = MapCompose(remove_tags)
     desc_out = Join()
+
+class AOItemLoader(StoryItemLoader):
+    body_out = Join()
 
 class JsonLinesExportPipeline(object):
     def __init__(self):
@@ -60,16 +66,53 @@ class JsonLinesExportPipeline(object):
 class FFSpider(Spider):
     name = "ff"
     allowed_domains = ["fanfiction.net"]
+    # start_urls = [
+    #     "https://www.fanfiction.net/%s/" % c for c in 
+    #     (
+    #         'anime',
+    #         'book',
+    #         'cartoon',
+    #         'comic',
+    #         'game',
+    #         'misc',
+    #         'movie',
+    #         'play',
+    #         'tv'
+    #     )
+    # ]
     start_urls = [
-        "https://www.fanfiction.net/j/0/1/0"
+        "https://www.fanfiction.net/misc/"
     ]
 
     def parse(self, response):
-        for href in response.xpath('//*[@class="stitle"]/@href'):
+        for href in response.xpath('//td[@valign="TOP"]/div/a/@href'):
             url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_story)
+            yield Request(url, callback = self.parse_tag)
+
+    def parse_tag(self, response):
+        for href in response.xpath('//div/center[1]/a[contains(text(), "Next")]/@href'):
+            url = response.urljoin(href.extract())
+            yield Request(url, callback = self.parse_tag)
+
+        for href in response.xpath('//div[contains(@class,"z-list")]/a[1]/@href'):
+            long_url = response.urljoin(href.extract())
+            url      = '/'.join(long_url.split('/')[0:-1])
+            yield Request(url, callback = self.parse_story)
 
     def parse_story(self, response):
+        header  = response.xpath('//span[@class="xgray xcontrast_txt"]/text()')
+        head    = header.extract()[1]
+        chapter = int(response.url.split('/')[-1])
+        more    = re.search('Chapters: [0-9]*', head)
+        if more and chapter == 1:
+            chapters = int(more.group(0).split()[1])
+            base_url = '/'.join(response.url.split('/')[0:-1])
+            urls = [
+                base_url + '/' +  str(x) for x in range(2, chapters+1)
+            ]
+            for url in urls:
+                yield Request(url, callback = self.parse_story)
+
         loader = FFItemLoader(StoryItem(), response=response)
         loader.add_xpath('title', '//*[@id="profile_top"]/b/text()')
         loader.add_xpath('author', '//*[@id="profile_top"]/a[1]/text()')
@@ -78,6 +121,7 @@ class FFSpider(Spider):
         loader.add_value('url', response.url)
         loader.add_value('site', 'fanfiction.net')
         loader.add_value('theme', '')
+        loader.add_value('page', str(chapter))
         yield loader.load_item()
 
 class LESpider(Spider):
@@ -150,46 +194,36 @@ class AOSpider(Spider):
     name = "ao"
     allewed_domains = ["archiveofourown.org"]
     start_urls = [
-        # "https://archiveofourown.org/media"
-        "http://archiveofourown.org/works/6508453/chapters/14893933"
+        "https://archiveofourown.org/media"
+        # "http://archiveofourown.org/works/6508453/chapters/14893933?view_full_work=true&view_adult=true"
     ]
 
-    # def parse(self, response):
-    #     for href in response.xpath('//h3/a/@href'):
-    #         url = response.urljoin(href.extract())
-    #         yield Request(url, callback=self.parse_genre)
-
-    # def parse_genre(self, response):
-    #     for href in response.xpath('//li/ul/li/a/@href'):
-    #         url = response.urljoin(href.extract())
-    #         yield Request(url, callback=self.parse_topic)
-        
-    #     for href in response.xpath('(//ol[@role="navigation"])[1]/li[last()]/a/@href'):
-    #         url = response.urljoin(href.extract())
-    #         yield Request(url, callback=self.parse_genre)
-
-    # def parse_topic(self, response):
-    #     for href in response.xpath('//h4/a[1]/@href'):
-    #         url = "%s?view_full_work=true&view_adult=true" % response.urljoin(href.extract())
-    #         yield Request(url, callback=self.parse_story)
-
-    # def parse_story(self, response):
-    #     loader = StoryItemLoader(StoryItem(), response=response)
-    #     loader.add_xpath('title', '//h2/text()')
-    #     loader.add_xpath('author', '//a[@rel="author"]/text()')
-    #     loader.add_xpath('desc', '(//*[@class="summary module"])[1]')
-    #     loader.add_xpath('body', '(//*[@role="article"]')
-    #     loader.add_xpath('url', response.url)
-    #     loader.add_value('site', 'archiveofourown.org')
-    #     loader.add_xpath('theme', '//dd[@class="fandom tags"]')
-    #     yield loader.load_item()
-
     def parse(self, response):
-        loader = StoryItemLoader(StoryItem(), response=response)
+        for href in response.xpath('//h3/a/@href'):
+            url = response.urljoin(href.extract())
+            yield Request(url, callback=self.parse_genre)
+
+    def parse_genre(self, response):
+        for href in response.xpath('//li/ul/li/a/@href'):
+            url = response.urljoin(href.extract())
+            yield Request(url, callback=self.parse_tag)
+        
+
+    def parse_tag(self, response):
+        for href in response.xpath('(//ol[@role="navigation"])[1]/li[last()]/a/@href'):
+            url = response.urljoin(href.extract())
+            yield Request(url, callback=self.parse_tag)
+
+        for href in response.xpath('//h4/a[1]/@href'):
+            url = response.urljoin(href.extract()) + '?view_full_work=true&view_adult=true'
+            yield Request(url, callback=self.parse_story)
+
+    def parse_story(self, response):
+        loader = AOItemLoader(StoryItem(), response=response)
         loader.add_xpath('title', '//h2/text()')
         loader.add_xpath('author', '//a[@rel="author"]/text()')
         loader.add_xpath('desc', '(//*[@class="summary module"])[1]')
-        loader.add_xpath('body', '//*[@id="chapters"]')
+        loader.add_xpath('body', '//*[@id="chapters"]//div/p/text()')
         loader.add_value('url', response.url)
         loader.add_value('site', 'archiveofourown.org')
         loader.add_xpath('theme', '//dd[@class="fandom tags"]')
@@ -236,8 +270,8 @@ ao_crawler.signals.connect(callback, signal=signals.spider_closed)
 # crawler.configure()
 # crawler.crawl(spider)
 # ff_crawler.crawl()
-le_crawler.crawl()
-# ao_crawler.crawl()
+# le_crawler.crawl()
+ao_crawler.crawl()
 
 # start logging
 # log.start()

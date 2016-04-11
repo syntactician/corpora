@@ -18,7 +18,7 @@ clean: sweep
 
 erotica:
 	# @echo 'figure.autolayout : True' > matplotlibrc
-	# @ptangle erotica.mdw && python erotica.py
+	# @ptangle erotica.mdw && python3 erotica.py
 	@$W erotica.mdw
 	@$P erotica
 	@$P erotica

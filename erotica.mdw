@@ -14,43 +14,44 @@
 
 \section{Dependency Resolution}
 
-This code is meant for use under Python 3, and is tested only under
-\href{https://www.python.org/downloads/releases/351}{version 3.5.1}.  It uses
-\href{https://www.crummy.com/software/BeautifulSoup/}{BeautifulSoup} (tested on
-≥4.3.2) and \href{http://www.nltk.org}{nltk} (≥3.0.4) to analyze corpora built
-using \href{http://scrapy.org}{Scrapy} (\href{https://blog.scrapinghub.com/2016/02/04/python-3-support-with-scrapy-1-1rc1/}{1.1.0rc1}).\footnote{Any
-other version of Scrapy will likely break this code.  Scrapy's stable release
-does not support Python 3, and much of this code is likely not valid for that
-release.}
-
-\href{https://www.crummy.com/software/BeautifulSoup/}{BeautifulSoup} (tested on
-≥4.3.2) and \href{http://www.nltk.org}{nltk} (≥3.0.4) to analyze corpora built
-using \href{http://scrapy.org}{Scrapy} (\href{https://blog.scrapinghub.com/2016/02/04/python-3-support-with-scrapy-1-1rc1/}{1.1.0rc1}).\footnote{Any
-other version of Scrapy will likely break this code.  Scrapy's stable release
-does not support Python 3, and much of this code is likely not valid for that
-release.}
-
-The dependencies for this code are non-trivial. If you have a Python
-distribution installed already, you should not attempt to alter it to
-accomodate this code, as its dependencies are largely unstable.  The best
-solution is virtualization. The following Dockerfile is sufficient to create a
-suitable environment. The same is trivially easy to achieve with
-virtualenv.\footnote{Under OS X, you may still have an issue with libxml. If
-	you cannot satisfy the libxml dependency using virtualenv, Docker is likely
-	your only recourse.}
-
-\inputminted{docker}{Dockerfile}
-
 This document is a
 \href{http://www.literateprogramming.com/knuthweb.pdf}{literate} Python program
 written inset within a \href{https://www.latex-project.org}{\LaTeX} document,
 woven and executed using \href{http://mpastell.com/pweave/}{Pweave} and typeset
 using \href{https://www.tug.org/applications/pdftex}{pdf{\TeX}}
 
+This code is meant for use under Python 3, and is tested only under
+\href{https://www.python.org/downloads/releases/351}{version 3.5.1}.  It uses
+\href{https://www.crummy.com/software/BeautifulSoup/}{BeautifulSoup} and
+\href{http://www.nltk.org}{nltk} to analyze corpora built using
+\href{http://scrapy.org}{Scrapy}
+(\href{https://blog.scrapinghub.com/2016/02/04/python-3-support-with-scrapy-1-1rc1/}{1.1.0rc1}).\footnote{
+	Any other version of Scrapy will likely break this code.  Scrapy's stable
+	release does not support Python 3, and much of this code is likely not
+	valid for that release.}
+
+Resolving the dependencies for this code are non-trivial. If you have a Python
+distribution installed already, you may not want to attempt to alter it to
+accomodate this code, as its dependencies are somewhat unstable.  The best
+solution is virtualization. The following Dockerfile is sufficient to create a
+suitable environment. The same is trivially easy to achieve with
+virtualenv.\footnote{Under OS X, you may still have an issue with libxml. It
+	can usually be solved by (re)installing Xcode. If you cannot satisfy the
+	libxml dependency, then virtualenv is not a possible solution, and Docker
+	is likely your only recourse.}
+
+\inputminted{docker}{Dockerfile}
+
+This Dockerfile installs the following dependencies, against which the code is
+run on Ubuntu 14.04:
+
+\inputminted{python}{requirements.txt}
+
 
 \section{Building Corpora with \href{http://scrapy.org}{Scrapy}}
 
-Import everything?
+Import stuff:
+
 % import {{{
 <<import>>=
 from scrapy import signals, Spider, Item, Field, Request
@@ -61,13 +62,23 @@ from scrapy.loader.processors import Join, MapCompose, TakeFirst
 from scrapy.settings import Settings
 from scrapy.utils import log
 from twisted.internet import reactor
+
+from bs4 import BeautifulSoup
 from w3lib.html import remove_tags
+import re
 @
 % }}}
 
-Define an item to hold the information I care about. In the current
-implementation, each story will be output as a Json item on a single line of a
-file.
+Scrapy provides an
+\texttt{\href{http://doc.scrapy.org/en/latest/topics/items.html}{Item}} class
+which is used to collect scraped data. The following code defines an
+\texttt{Item} class to hold information about stories. Each chapter of each
+story in the corpus will be stored as a separate text (\texttt{body}) with a
+\texttt{title}, an \texttt{author}, a description or summary (\texttt{desc}),
+the topic or \texttt{theme} of the story, its \texttt{page} or chapter number
+within a larger work, the \texttt{site} it was scraped from, and the
+\texttt{url} from which it was scraped.
+
 % item {{{
 <<item>>=
 class StoryItem(Item):
@@ -83,6 +94,8 @@ class StoryItem(Item):
 % }}}
 
 Define how to load the above item with raw data from the sites.
+% consider putting below spiders
+
 % item loaders {{{
 <<item_loader>>=
 class StoryItemLoader(ItemLoader):
@@ -96,11 +109,15 @@ class FFItemLoader(StoryItemLoader):
     # desc_out = Join()
     desc_in  = MapCompose(remove_tags)
     desc_out = Join()
+
+class AOItemLoader(StoryItemLoader):
+    body_out = Join()
 @
 % }}}
 
 Pipe the scraped text into Json items on the lines of a file (one file per
-spider).
+spider). % consider putting below spiders
+
 % pipeline {{{
 <<pipeline>>=
 class JsonLinesExportPipeline(object):
@@ -137,16 +154,53 @@ A spider to scrape \texttt{\href{https://fanfiction.net}{fanfiction.net}}:
 class FFSpider(Spider):
     name = "ff"
     allowed_domains = ["fanfiction.net"]
+    # start_urls = [
+    #     "https://www.fanfiction.net/%s/" % c for c in 
+    #     (
+    #         'anime',
+    #         'book',
+    #         'cartoon',
+    #         'comic',
+    #         'game',
+    #         'misc',
+    #         'movie',
+    #         'play',
+    #         'tv'
+    #     )
+    # ]
     start_urls = [
-        "https://www.fanfiction.net/j/0/1/0"
+        "https://www.fanfiction.net/misc/"
     ]
 
     def parse(self, response):
-        for href in response.xpath('//*[@class="stitle"]/@href'):
+        for href in response.xpath('//td[@valign="TOP"]/div/a/@href'):
             url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_story)
+            yield Request(url, callback = self.parse_tag)
+
+    def parse_tag(self, response):
+        for href in response.xpath('//div/center[1]/a[contains(text(), "Next")]/@href'):
+            url = response.urljoin(href.extract())
+            yield Request(url, callback = self.parse_tag)
+
+        for href in response.xpath('//div[contains(@class,"z-list")]/a[1]/@href'):
+            long_url = response.urljoin(href.extract())
+            url      = '/'.join(long_url.split('/')[0:-1])
+            yield Request(url, callback = self.parse_story)
 
     def parse_story(self, response):
+        header  = response.xpath('//span[@class="xgray xcontrast_txt"]/text()')
+        head    = header.extract()[1]
+        chapter = int(response.url.split('/')[-1])
+        more    = re.search('Chapters: [0-9]*', head)
+        if more and chapter == 1:
+            chapters = int(more.group(0).split()[1])
+            base_url = '/'.join(response.url.split('/')[0:-1])
+            urls = [
+                base_url + '/' +  str(x) for x in range(2, chapters+1)
+            ]
+            for url in urls:
+                yield Request(url, callback = self.parse_story)
+
         loader = FFItemLoader(StoryItem(), response=response)
         loader.add_xpath('title', '//*[@id="profile_top"]/b/text()')
         loader.add_xpath('author', '//*[@id="profile_top"]/a[1]/text()')
@@ -155,11 +209,14 @@ class FFSpider(Spider):
         loader.add_value('url', response.url)
         loader.add_value('site', 'fanfiction.net')
         loader.add_value('theme', '')
+        loader.add_value('page', str(chapter))
         yield loader.load_item()
 @
 % }}}
 
 Spider for \href{https://www.literotica.com/}{Literotica}:
+% may produce roughly 602378 results... maybe more?
+
 % literotica spider {{{
 <<literotica_spider>>=
 class LESpider(Spider):
@@ -237,52 +294,44 @@ class AOSpider(Spider):
     name = "ao"
     allewed_domains = ["archiveofourown.org"]
     start_urls = [
-        # "https://archiveofourown.org/media"
-        "http://archiveofourown.org/works/6508453/chapters/14893933"
+        "https://archiveofourown.org/media"
+        # "http://archiveofourown.org/works/6508453/chapters/14893933?view_full_work=true&view_adult=true"
     ]
 
-    # def parse(self, response):
-    #     for href in response.xpath('//h3/a/@href'):
-    #         url = response.urljoin(href.extract())
-    #         yield Request(url, callback=self.parse_genre)
-
-    # def parse_genre(self, response):
-    #     for href in response.xpath('//li/ul/li/a/@href'):
-    #         url = response.urljoin(href.extract())
-    #         yield Request(url, callback=self.parse_topic)
-        
-    #     for href in response.xpath('(//ol[@role="navigation"])[1]/li[last()]/a/@href'):
-    #         url = response.urljoin(href.extract())
-    #         yield Request(url, callback=self.parse_genre)
-
-    # def parse_topic(self, response):
-    #     for href in response.xpath('//h4/a[1]/@href'):
-    #         url = "%s?view_full_work=true&view_adult=true" % response.urljoin(href.extract())
-    #         yield Request(url, callback=self.parse_story)
-
-    # def parse_story(self, response):
-    #     loader = StoryItemLoader(StoryItem(), response=response)
-    #     loader.add_xpath('title', '//h2/text()')
-    #     loader.add_xpath('author', '//a[@rel="author"]/text()')
-    #     loader.add_xpath('desc', '(//*[@class="summary module"])[1]')
-    #     loader.add_xpath('body', '(//*[@role="article"]')
-    #     loader.add_xpath('url', response.url)
-    #     loader.add_value('site', 'archiveofourown.org')
-    #     loader.add_xpath('theme', '//dd[@class="fandom tags"]')
-    #     yield loader.load_item()
-
     def parse(self, response):
-        loader = StoryItemLoader(StoryItem(), response=response)
+        for href in response.xpath('//h3/a/@href'):
+            url = response.urljoin(href.extract())
+            yield Request(url, callback=self.parse_genre)
+
+    def parse_genre(self, response):
+        for href in response.xpath('//li/ul/li/a/@href'):
+            url = response.urljoin(href.extract())
+            yield Request(url, callback=self.parse_tag)
+        
+
+    def parse_tag(self, response):
+        for href in response.xpath('(//ol[@role="navigation"])[1]/li[last()]/a/@href'):
+            url = response.urljoin(href.extract())
+            yield Request(url, callback=self.parse_tag)
+
+        for href in response.xpath('//h4/a[1]/@href'):
+            url = response.urljoin(href.extract()) + '?view_full_work=true&view_adult=true'
+            yield Request(url, callback=self.parse_story)
+
+    def parse_story(self, response):
+        loader = AOItemLoader(StoryItem(), response=response)
         loader.add_xpath('title', '//h2/text()')
         loader.add_xpath('author', '//a[@rel="author"]/text()')
         loader.add_xpath('desc', '(//*[@class="summary module"])[1]')
-        loader.add_xpath('body', '//*[@id="chapters"]')
+        loader.add_xpath('body', '//*[@id="chapters"]//div/p/text()')
         loader.add_value('url', response.url)
         loader.add_value('site', 'archiveofourown.org')
         loader.add_xpath('theme', '//dd[@class="fandom tags"]')
         yield loader.load_item()
 @
 % }}}
+This spider fails for at least two reasons:
+% detail them
 
 What signal should the spider send when it closes itself? \\ Currently stops
 the twisted reactor.
@@ -337,8 +386,8 @@ ao_crawler.signals.connect(callback, signal=signals.spider_closed)
 # crawler.configure()
 # crawler.crawl(spider)
 # ff_crawler.crawl()
-le_crawler.crawl()
-# ao_crawler.crawl()
+# le_crawler.crawl()
+ao_crawler.crawl()
 
 # start logging
 # log.start()
