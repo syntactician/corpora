@@ -10,5 +10,3 @@ RUN apt-get update &&                        \
 		libxslt1-dev                 \
 		libz-dev
 RUN pip3 install scrapy==1.1.0rc1
-
-CMD pip3 freeze
