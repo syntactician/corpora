@@ -7,7 +7,7 @@ L := latexmk $Q $R
 P := pdflatex $S
 W := pweave $T
 
-all: erotica
+all: fanfiction
 
 sweep:
 	@$L -c
@@ -16,10 +16,10 @@ sweep:
 clean: sweep
 	@$L -C
 
-erotica:
+fanfiction:
 	# @echo 'figure.autolayout : True' > matplotlibrc
-	# @ptangle erotica.mdw && python3 erotica.py
-	@$W erotica.mdw
-	@$P erotica
-	@$P erotica
+	# @ptangle fanfiction.mdw && python3 fanfiction.py
+	@$W fanfiction.mdw
+	@$P fanfiction
+	@$P fanfiction
 	@$(MAKE) sweep
