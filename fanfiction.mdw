@@ -25,7 +25,7 @@ This code is meant for use under Python 3, and is tested only under
 \href{https://www.crummy.com/software/BeautifulSoup/}{BeautifulSoup} and
 \href{http://www.nltk.org}{nltk} to analyze corpora built using
 \href{http://scrapy.org}{Scrapy}
-(\href{https://blog.scrapinghub.com/2016/02/04/python-3-support-with-scrapy-1-1rc1/}{1.1.0rc1}).\footnote{
+(\href{https://blog.scrapinghub.com/2016/02/04/python-3-support-with-scrapy-1-1rc1/}{$\geq$1.1.0rc1}).\footnote{
 	Any other version of Scrapy will likely break this code.  Scrapy's stable
 	release does not support Python 3, and much of this code is likely not
 	valid for that release.}
