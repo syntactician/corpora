@@ -111,7 +111,8 @@ class FFItemLoader(StoryItemLoader):
     desc_out = Join()
 
 class AOItemLoader(StoryItemLoader):
-    body_out = Join()
+    body_out  = Join()
+    theme_out = Join(', ')
 @
 % }}}
 
@@ -322,19 +323,16 @@ class AOSpider(Spider):
         loader = AOItemLoader(StoryItem(), response=response)
         loader.add_xpath('title', '//h2/text()')
         loader.add_xpath('author', '//a[@rel="author"]/text()')
-        loader.add_xpath('desc', '(//*[@class="summary module"])[1]')
+        loader.add_xpath('desc', '(//*[@class="summary module"])[1]//p/text()')
         loader.add_xpath('body', '//*[@id="chapters"]//div/p/text()')
         loader.add_value('url', response.url)
         loader.add_value('site', 'archiveofourown.org')
-        loader.add_xpath('theme', '//dd[@class="fandom tags"]')
+        loader.add_xpath('theme', '//dd[@class="fandom tags"]//a/text()')
         yield loader.load_item()
 @
 % }}}
-This spider fails for at least two reasons:
-% detail them
 
-What signal should the spider send when it closes itself? \\ Currently stops
-the twisted reactor.
+I haven't yet figured out what signal the spiders should send to avoid shutting down the reactor (which cannot be restarted) before all three are finished (if they are all run together.
 % callback {{{
 <<callback>>=
 # callback fired when the spider is closed
@@ -385,9 +383,9 @@ ao_crawler.signals.connect(callback, signal=signals.spider_closed)
 # configure and start the crawler
 # crawler.configure()
 # crawler.crawl(spider)
-# ff_crawler.crawl()
+ff_crawler.crawl()
 # le_crawler.crawl()
-ao_crawler.crawl()
+# ao_crawler.crawl()
 
 # start logging
 # log.start()
