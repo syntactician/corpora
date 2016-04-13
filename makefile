@@ -20,6 +20,7 @@ fanfiction:
 	# @echo 'figure.autolayout : True' > matplotlibrc
 	# @ptangle fanfiction.mdw && python3 fanfiction.py
 	@$W fanfiction.mdw
+	@sed -e '/minted/s/\%s/python/' -i fanfiction.tex
 	@$P fanfiction
 	@$P fanfiction
 	@$(MAKE) sweep

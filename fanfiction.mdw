@@ -12,38 +12,50 @@
 \affiliation{College of William \& Mary}
 \maketitle
 
-\section{Dependency Resolution}
+\section{The Program}
 
 This document is a
 \href{http://www.literateprogramming.com/knuthweb.pdf}{literate} Python program
-written inset within a \href{https://www.latex-project.org}{\LaTeX} document,
-woven and executed using \href{http://mpastell.com/pweave/}{Pweave} and typeset
-using \href{https://www.tug.org/applications/pdftex}{pdf{\TeX}}
-
-This code is meant for use under Python 3, and is tested only under
+inset within a \href{https://www.latex-project.org}{\LaTeX} document, woven and
+executed using \href{http://mpastell.com/pweave/}{Pweave} and typeset using
+\href{https://www.tug.org/applications/pdftex}{pdf{\TeX}} This code is written
+in/for Python 3, and is intended for and tested under only
 \href{https://www.python.org/downloads/releases/351}{version 3.5.1}.  It uses
-\href{https://www.crummy.com/software/BeautifulSoup/}{BeautifulSoup} and
 \href{http://www.nltk.org}{nltk} to analyze corpora built using
 \href{http://scrapy.org}{Scrapy}
 (\href{https://blog.scrapinghub.com/2016/02/04/python-3-support-with-scrapy-1-1rc1/}{$\geq$1.1.0rc1}).\footnote{
-	Any other version of Scrapy will likely break this code.  Scrapy's stable
-	release does not support Python 3, and much of this code is likely not
-	valid for that release.}
+	Scrapy's stable release
+	(\href{https://pypi.python.org/pypi/Scrapy/1.1.0rc3}{1.0.5}) does not
+	support Python 3, so this program currently runs against only development
+	versions after 1.1.0rc1. All code is tested to run against 1.1.0rc1 but is
+	primarily run against 1.2.0dev2, the current development branch on github.
+}
 
-Resolving the dependencies for this code are non-trivial. If you have a Python
-distribution installed already, you may not want to attempt to alter it to
-accomodate this code, as its dependencies are somewhat unstable.  The best
-solution is virtualization. The following Dockerfile is sufficient to create a
-suitable environment. The same is trivially easy to achieve with
-virtualenv.\footnote{Under OS X, you may still have an issue with libxml. It
-	can usually be solved by (re)installing Xcode. If you cannot satisfy the
-	libxml dependency, then virtualenv is not a possible solution, and Docker
-	is likely your only recourse.}
+Resolving the dependencies for this code is non-trivial.
+Ideally, pip should be able to handle the dependencies:
+
+\inputminted{bash}{pip.sh}
+
+\noindent
+However, if you are running OS X, pip will likely fail building lxml, since OS
+X does not ship libxml by default. This can usually be solved by (re)installing
+the Xcode command line tools: \mintinline{bash}{xcode-select install}. However,
+this is not always successful.  Additionally, if you have a Python distribution
+installed already, you may not want to attempt to alter it to accomodate this
+program, especially if you make use of a stable version of any of its
+dependencies. 
+
+In either case, the best solution is probably virtualization. The following
+Dockerfile is sufficient to create a suitable environment.\footnote{
+	Virtualenv is another good solution to avoid altering your Python
+	installation, but cannot be used to satisfy the dependence on libxml, since
+	it manages only Python-internal dependencies.
+}
 
 \inputminted{docker}{Dockerfile}
 
-This Dockerfile installs the following dependencies, against which the code is
-run on Ubuntu 14.04:
+This Dockerfile installs the following dependencies, against which the code has
+been tested to run on Ubuntu 14.04:
 
 \inputminted{python}{requirements.txt}
 

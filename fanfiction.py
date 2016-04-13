@@ -243,14 +243,8 @@ settings.set(
     'ITEM_PIPELINES', {
         '__main__.JsonLinesExportPipeline': 100,
     }
-    # },
-    # 'DOWNLOADER_MIDDLEWARES' = {
-    #     'scrapy.contrib.downloadermiddleware.useragent.UserAgentMiddleware' : None,
-    #     'random_useragent.RandomUserAgentMiddleware': 400,
-    # },
-    # 'USER_AGENT_LIST' = "./useragents.txt"
 )
-settings.set('USER_AGENT', 'Mozilla/5.0 (Windows NT 6.3; Win64; x64)')
+# settings.set('USER_AGENT', 'Mozilla/5.0 (Windows NT 6.3; Win64; x64)')
 
 # instantiate a spider
 ff_spider = FFSpider()
