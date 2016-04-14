@@ -67,22 +67,19 @@ class JsonLinesExportPipeline(object):
 class FFSpider(Spider):
     name = "ff"
     allowed_domains = ["fanfiction.net"]
-    # start_urls = [
-    #     "https://www.fanfiction.net/%s/" % c for c in 
-    #     (
-    #         'anime',
-    #         'book',
-    #         'cartoon',
-    #         'comic',
-    #         'game',
-    #         'misc',
-    #         'movie',
-    #         'play',
-    #         'tv'
-    #     )
-    # ]
     start_urls = [
-        "https://www.fanfiction.net/misc/"
+        "https://www.fanfiction.net/%s/" % c for c in 
+        (
+            'anime',
+            'book',
+            'cartoon',
+            'comic',
+            'game',
+            'misc',
+            'movie',
+            'play',
+            'tv'
+        )
     ]
 
     def parse(self, response):
@@ -193,10 +190,9 @@ class LESpider(Spider):
 
 class AOSpider(Spider):
     name = "ao"
-    allewed_domains = ["archiveofourown.org"]
+    allowed_domains = ["archiveofourown.org"]
     start_urls = [
         "https://archiveofourown.org/media"
-        # "http://archiveofourown.org/works/6508453/chapters/14893933?view_full_work=true&view_adult=true"
     ]
 
     def parse(self, response):
@@ -244,7 +240,9 @@ settings.set(
         '__main__.JsonLinesExportPipeline': 100,
     }
 )
-# settings.set('USER_AGENT', 'Mozilla/5.0 (Windows NT 6.3; Win64; x64)')
+settings.set(
+    'USER_AGENT', 'Mozilla/5.0 (Windows NT 6.3; Win64; x64)'
+)
 
 # instantiate a spider
 ff_spider = FFSpider()

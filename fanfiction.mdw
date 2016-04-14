@@ -167,22 +167,19 @@ A spider to scrape \texttt{\href{https://fanfiction.net}{fanfiction.net}}:
 class FFSpider(Spider):
     name = "ff"
     allowed_domains = ["fanfiction.net"]
-    # start_urls = [
-    #     "https://www.fanfiction.net/%s/" % c for c in 
-    #     (
-    #         'anime',
-    #         'book',
-    #         'cartoon',
-    #         'comic',
-    #         'game',
-    #         'misc',
-    #         'movie',
-    #         'play',
-    #         'tv'
-    #     )
-    # ]
     start_urls = [
-        "https://www.fanfiction.net/misc/"
+        "https://www.fanfiction.net/%s/" % c for c in 
+        (
+            'anime',
+            'book',
+            'cartoon',
+            'comic',
+            'game',
+            'misc',
+            'movie',
+            'play',
+            'tv'
+        )
     ]
 
     def parse(self, response):
@@ -305,10 +302,9 @@ Spider for \href{https://archiveofourown.org/}{AO3}:
 <<ao3_spider>>=
 class AOSpider(Spider):
     name = "ao"
-    allewed_domains = ["archiveofourown.org"]
+    allowed_domains = ["archiveofourown.org"]
     start_urls = [
         "https://archiveofourown.org/media"
-        # "http://archiveofourown.org/works/6508453/chapters/14893933?view_full_work=true&view_adult=true"
     ]
 
     def parse(self, response):
@@ -344,7 +340,7 @@ class AOSpider(Spider):
 @
 % }}}
 
-I haven't yet figured out what signal the spiders should send to avoid shutting down the reactor (which cannot be restarted) before all three are finished (if they are all run together.
+I haven't yet figured out what signal the spiders should send to avoid shutting down the reactor (which cannot be restarted) before all three are finished (if they are all run together).
 % callback {{{
 <<callback>>=
 # callback fired when the spider is closed
@@ -365,7 +361,9 @@ settings.set(
         '__main__.JsonLinesExportPipeline': 100,
     }
 )
-# settings.set('USER_AGENT', 'Mozilla/5.0 (Windows NT 6.3; Win64; x64)')
+settings.set(
+    'USER_AGENT', 'Mozilla/5.0 (Windows NT 6.3; Win64; x64)'
+)
 @
 % }}}
 
