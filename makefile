@@ -15,6 +15,7 @@ sweep:
 		*.log        \
 		*.out        \
 		*.tex*       \
+		__pycache__  \
 		_minted*/    \
 		figures/     \
 		matplotlibrc
