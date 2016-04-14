@@ -173,6 +173,10 @@ class LESpider(Spider):
             yield Request(url, callback=self.parse)
 
     def parse_story(self, response):
+        for href in response.xpath('//*[@class="b-pager-next"]/@href'):
+            url = response.urljoin(href.extract())
+            yield Request(url, callback=self.parse_story)
+
         loader = StoryItemLoader(StoryItem(), response=response)
         loader.add_xpath('title', '//h1/text()')
         loader.add_xpath('author', '//*[@id="content"]/div[2]/span[1]/a/text()')
@@ -183,10 +187,6 @@ class LESpider(Spider):
         loader.add_value('site', 'literotica.com')
         loader.add_xpath('page', '//*[@class="b-pager-active"]/text()')
         yield loader.load_item()
-
-        for href in response.xpath('//*[@class="b-pager-next"]/@href'):
-            url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_story)
 
 class AOSpider(Spider):
     name = "ao"
