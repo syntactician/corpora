@@ -7,10 +7,11 @@ from scrapy.loader.processors import Join, MapCompose, TakeFirst
 from scrapy.settings import Settings
 from scrapy.utils import log
 from twisted.internet import reactor
-
-from bs4 import BeautifulSoup
+# from bs4 import BeautifulSoup
+from chatterbot import ChatBot
 from w3lib.html import remove_tags
 import re
+import json
 
 class StoryItem(Item):
     title  = Field()
@@ -262,8 +263,8 @@ ao_crawler.signals.connect(callback, signal=signals.spider_closed)
 # configure and start the crawler
 # crawler.configure()
 # crawler.crawl(spider)
-ff_crawler.crawl()
-# le_crawler.crawl()
+# ff_crawler.crawl()
+le_crawler.crawl()
 # ao_crawler.crawl()
 
 # start logging
@@ -272,3 +273,29 @@ log.configure_logging()
 
 # start the reactor (blocks execution)
 reactor.run()
+
+chatbot = ChatBot(
+    "Sasuke",
+    io_adapter = "chatterbot.adapters.io.NoOutputAdapter"
+)
+# chatbot.train("chatterbot.corpus.english")
+
+file = open('le_products.jl')
+
+for line in file.readlines():
+    conversation = []
+    story = json.loads(line)
+    body = story['body']
+    graphs = body.split('\n')
+    for graph in graphs:
+        speech = graph.split('"')[1::2]
+        utterance = ' '.join(speech)
+        if utterance:
+            conversation.append(utterance)
+    if conversation:
+        chatbot.train(conversation)
+
+<<conversation>>=
+print(
+    chatbot.get_response("Hello")
+)

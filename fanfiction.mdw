@@ -74,10 +74,11 @@ from scrapy.loader.processors import Join, MapCompose, TakeFirst
 from scrapy.settings import Settings
 from scrapy.utils import log
 from twisted.internet import reactor
-
-from bs4 import BeautifulSoup
+# from bs4 import BeautifulSoup
+from chatterbot import ChatBot
 from w3lib.html import remove_tags
 import re
+import json
 @
 % }}}
 
@@ -387,8 +388,8 @@ ao_crawler.signals.connect(callback, signal=signals.spider_closed)
 # configure and start the crawler
 # crawler.configure()
 # crawler.crawl(spider)
-ff_crawler.crawl()
-# le_crawler.crawl()
+# ff_crawler.crawl()
+le_crawler.crawl()
 # ao_crawler.crawl()
 
 # start logging
@@ -401,6 +402,44 @@ reactor.run()
 % }}}
 
 \section{Analysis with \href{http://www.nltk.org}{NLTK}}
+
+\section{Training a \href{https://pypi.python.org/pypi/ChatterBot}{ChatterBot}}
+
+<<chatbot>>=
+chatbot = ChatBot(
+    "Sasuke",
+    io_adapter = "chatterbot.adapters.io.NoOutputAdapter"
+)
+# chatbot.train("chatterbot.corpus.english")
+@
+
+<<training_display, evaluate=False>>=
+file = open('le_products.jl')
+
+for line in file.readlines():
+    conversation = []
+    story = json.loads(line)
+    body = story['body']
+    graphs = body.split('\n')
+    for graph in graphs:
+        speech = graph.split('"')[1::2]
+        utterance = ' '.join(speech)
+        if utterance:
+            conversation.append(utterance)
+    if conversation:
+        chatbot.train(conversation)
+@
+
+<<conversation>>=
+print(
+    chatbot.get_response("Hello")
+)
+@
+
+Unfortunately, once the chatbot has been trained on a decent amount of data, it
+becomes unusably slow. This is almost certainly a result of its storage method
+(a flat database stored to disk) and the nature of its implementation (in
+Python).
 
 \end{document}
 % vim: set fdm=marker fdl=0 :
