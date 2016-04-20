@@ -24,4 +24,3 @@ RUN pip3 install         \
 	chatterbot       \
 	scrapy==1.1.0rc1 \
 	vaderSentiment
-CMD pip3 freeze
