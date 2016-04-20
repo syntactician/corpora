@@ -1,3 +1,6 @@
+% TODO:
+% * cut down long lines (remember // in xpath)
+
 \documentclass[man,12pt]{apa6}
 \usepackage[colorlinks=true]{hyperref}
 \usepackage{amssymb,amsmath,times,minted}
@@ -46,7 +49,7 @@ program, especially if you make use of a stable version of any of its
 dependencies. 
 
 In either case, the best solution is probably virtualization. The following
-Dockerfile is sufficient to create a suitable environment.\footnote{
+Dockerfile is minimally sufficient to create a suitable environment.\footnote{
 	Virtualenv is another good solution to avoid altering your Python
 	installation, but cannot be used to satisfy the dependence on libxml, since
 	it manages only Python-internal dependencies.
@@ -55,9 +58,10 @@ Dockerfile is sufficient to create a suitable environment.\footnote{
 \inputminted{docker}{Dockerfile}
 
 This Dockerfile installs the following dependencies, against which the code has
-been tested to run on Ubuntu 14.04:
+been tested to run on Ubuntu 16.04:
 
 \inputminted{python}{requirements.txt}
+
 
 
 \section{Building Corpora with \href{http://scrapy.org}{Scrapy}}
@@ -68,7 +72,7 @@ Import stuff:
 <<import>>=
 from scrapy import signals, Spider, Item, Field, Request
 from scrapy.crawler import Crawler
-from scrapy.exporters import XmlItemExporter, JsonLinesItemExporter
+from scrapy.exporters import JsonLinesItemExporter
 from scrapy.loader import ItemLoader
 from scrapy.loader.processors import Join, MapCompose, TakeFirst
 from scrapy.settings import Settings
@@ -85,12 +89,15 @@ import json
 Scrapy provides an
 \texttt{\href{http://doc.scrapy.org/en/latest/topics/items.html}{Item}} class
 which is used to collect scraped data. The following code defines an
-\texttt{Item} class to hold information about stories. Each chapter of each
-story in the corpus will be stored as a separate text (\texttt{body}) with a
-\texttt{title}, an \texttt{author}, a description or summary (\texttt{desc}),
+\texttt{StoryItem} class to hold information about stories. Each chapter of
+each story in the corpus will be stored as a separate text (\texttt{body}) with
+a \texttt{title}, an \texttt{author}, a description or summary (\texttt{desc}),
 the topic or \texttt{theme} of the story, its \texttt{page} or chapter number
 within a larger work, the \texttt{site} it was scraped from, and the
 \texttt{url} from which it was scraped.
+
+% I may further define items for each site (inheriting the StoryItem class) for
+% extra data
 
 % item {{{
 <<item>>=
@@ -106,8 +113,20 @@ class StoryItem(Item):
 @
 % }}}
 
-Define how to load the above item with raw data from the sites.
 % consider putting below spiders
+Scrapy provides an API by which data can be loaded into an \texttt{Item} via an
+\texttt{\href{http://doc.scrapy.org/en/latest/topics/loaders.html}{ItemLoader}}.
+The code below specifies a \texttt{StoryItemLoader} (which inherits the
+\texttt{ItemLoader} class defined by Scrapy) to load story data generally  and
+two classes which inherit it, to load particular data from specific websites.
+
+In cases where both the \texttt{StoryItemLoader} and one of the child classes
+specify a field (e.g. \texttt{body\_out}), the child class supersedes the parent.
+
+These loaders cannot be written before the \texttt{Spider}s defined below, as
+they operate on the output of those Spiders (and thus depend necessarily for
+their design on the design of those Spiders). They are defined here only
+because they must exist to be called by the Spiders.
 
 % item loaders {{{
 <<item_loader>>=
@@ -130,7 +149,8 @@ class AOItemLoader(StoryItemLoader):
 % }}}
 
 Pipe the scraped text into Json items on the lines of a file (one file per
-spider). % consider putting below spiders
+spider). 
+% consider putting below spiders
 
 % pipeline {{{
 <<pipeline>>=
@@ -141,12 +161,18 @@ class JsonLinesExportPipeline(object):
     @classmethod
     def from_crawler(cls, crawler):
         pipeline = cls()
-        crawler.signals.connect(pipeline.spider_opened, signals.spider_opened)
-        crawler.signals.connect(pipeline.spider_closed, signals.spider_closed)
+        crawler.signals.connect(
+            pipeline.spider_opened,
+            signals.spider_opened
+        )
+        crawler.signals.connect(
+            pipeline.spider_closed,
+            signals.spider_closed
+        )
         return pipeline
 
     def spider_opened(self, spider):
-        file = open('%s_products.jl' % spider.name, 'w+b')
+        file = open('%s_stories.jl' % spider.name, 'w+b')
         self.files[spider] = file
         self.exporter = JsonLinesItemExporter(file)
         self.exporter.start_exporting()
@@ -184,22 +210,33 @@ class FFSpider(Spider):
     ]
 
     def parse(self, response):
-        for href in response.xpath('//td[@valign="TOP"]/div/a/@href'):
+        tags = response.xpath(
+            '//td[@valign="TOP"]/div/a/@href'
+        )
+        for href in tags:
             url = response.urljoin(href.extract())
             yield Request(url, callback = self.parse_tag)
 
     def parse_tag(self, response):
-        for href in response.xpath('//div/center[1]/a[contains(text(), "Next")]/@href'):
+        next = response.xpath(
+            '//center[1]/a[contains(text(), "Next")]/@href'
+        )
+        for href in next:
             url = response.urljoin(href.extract())
             yield Request(url, callback = self.parse_tag)
 
-        for href in response.xpath('//div[contains(@class,"z-list")]/a[1]/@href'):
+        stories = response.xpath(
+            '//div[contains(@class,"z-list")]/a[1]/@href'
+        )
+        for href in stories:
             long_url = response.urljoin(href.extract())
             url      = '/'.join(long_url.split('/')[0:-1])
             yield Request(url, callback = self.parse_story)
 
     def parse_story(self, response):
-        header  = response.xpath('//span[@class="xgray xcontrast_txt"]/text()')
+        header  = response.xpath(
+            '//span[@class="xgray xcontrast_txt"]/text()'
+        )
         head    = header.extract()[1]
         chapter = int(response.url.split('/')[-1])
         more    = re.search('Chapters: [0-9]*', head)
@@ -213,14 +250,30 @@ class FFSpider(Spider):
                 yield Request(url, callback = self.parse_story)
 
         loader = FFItemLoader(StoryItem(), response=response)
-        loader.add_xpath('title', '//*[@id="profile_top"]/b/text()')
-        loader.add_xpath('author', '//*[@id="profile_top"]/a[1]/text()')
-        loader.add_xpath('desc', '//*[@id="profile_top"]/div')
-        loader.add_xpath('body', '//*[@id="storytext"]')
-        loader.add_value('url', response.url)
-        loader.add_value('site', 'fanfiction.net')
-        loader.add_value('theme', '')
-        loader.add_value('page', str(chapter))
+        loader.add_xpath(
+            'title', '//*[@id="profile_top"]/b/text()'
+        )
+        loader.add_xpath(
+            'author', '//*[@id="profile_top"]/a[1]/text()'
+        )
+        loader.add_xpath(
+            'desc', '//*[@id="profile_top"]/div'
+        )
+        loader.add_xpath(
+            'body', '//*[@id="storytext"]'
+        )
+        loader.add_value(
+            'url', response.url
+        )
+        loader.add_value(
+            'site', 'fanfiction.net'
+        )
+        loader.add_value(
+            'theme', ''
+        )
+        loader.add_value(
+            'page', str(chapter)
+        )
         yield loader.load_item()
 @
 % }}}
@@ -273,27 +326,53 @@ class LESpider(Spider):
     ]
 
     def parse(self, response):
-        for href in response.xpath('//*[@id="content"]/div/div/h3/a/@href'):
-            url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_story)
-        for href in response.xpath('//*[@class="b-pager-next"]/@href'):
+        next = response.xpath(
+            '//*[@class="b-pager-next"]/@href'
+        )
+        for href in next:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse)
 
+        stories = response.xpath(
+            '//*[@id="content"]/div/div/h3/a/@href'
+        )
+        for href in stories:
+            url = response.urljoin(href.extract())
+            yield Request(url, callback=self.parse_story)
+
     def parse_story(self, response):
-        for href in response.xpath('//*[@class="b-pager-next"]/@href'):
+        next = response.xpath(
+            '//*[@class="b-pager-next"]/@href'
+        )
+        for href in next:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse_story)
 
         loader = StoryItemLoader(StoryItem(), response=response)
-        loader.add_xpath('title', '//h1/text()')
-        loader.add_xpath('author', '//*[@id="content"]/div[2]/span[1]/a/text()')
-        loader.add_value('desc', '')
-        loader.add_xpath('theme', ('//*[@id="content"]/div[1]/a/text()'))
-        loader.add_xpath('body', '//*[@id="content"]/div[3]/div')
-        loader.add_value('url', response.url)
-        loader.add_value('site', 'literotica.com')
-        loader.add_xpath('page', '//*[@class="b-pager-active"]/text()')
+        loader.add_xpath(
+            'title', '//h1/text()'
+        )
+        loader.add_xpath(
+            'author', '//*[@id="content"]/div[2]/span[1]/a/text()'
+        )
+        loader.add_value(
+            'desc', ''
+        )
+        loader.add_xpath(
+            'theme', ('//*[@id="content"]/div[1]/a/text()')
+        )
+        loader.add_xpath(
+            'body', '//*[@id="content"]/div[3]/div'
+        )
+        loader.add_value(
+            'url', response.url
+        )
+        loader.add_value(
+            'site', 'literotica.com'
+        )
+        loader.add_xpath(
+            'page', '//*[@class="b-pager-active"]/text()'
+        )
         yield loader.load_item()
 @
 % }}}
@@ -309,39 +388,66 @@ class AOSpider(Spider):
     ]
 
     def parse(self, response):
-        for href in response.xpath('//h3/a/@href'):
+        genres = response.xpath(
+            '//h3/a/@href'
+        )
+        for href in genres:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse_genre)
 
     def parse_genre(self, response):
-        for href in response.xpath('//li/ul/li/a/@href'):
+        tags = response.xpath(
+            '//li/ul/li/a/@href'
+        )
+        for href in tags:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse_tag)
         
 
     def parse_tag(self, response):
-        for href in response.xpath('(//ol[@role="navigation"])[1]/li[last()]/a/@href'):
+        next = response.xpath(
+            '(//ol[@role="navigation"])[1]/li[last()]/a/@href'
+        )
+        for href in next:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse_tag)
 
-        for href in response.xpath('//h4/a[1]/@href'):
-            url = response.urljoin(href.extract()) + '?view_full_work=true&view_adult=true'
+        stories = response.xpath('//h4/a[1]/@href')
+        for href in stories:
+            extension = '?view_full_work=true&view_adult=true'
+            url = response.urljoin(href.extract()) + extension
             yield Request(url, callback=self.parse_story)
 
     def parse_story(self, response):
         loader = AOItemLoader(StoryItem(), response=response)
-        loader.add_xpath('title', '//h2/text()')
-        loader.add_xpath('author', '//a[@rel="author"]/text()')
-        loader.add_xpath('desc', '(//*[@class="summary module"])[1]//p/text()')
-        loader.add_xpath('body', '//*[@id="chapters"]//div/p/text()')
-        loader.add_value('url', response.url)
-        loader.add_value('site', 'archiveofourown.org')
-        loader.add_xpath('theme', '//dd[@class="fandom tags"]//a/text()')
+        loader.add_xpath(
+            'title', '//h2/text()'
+        )
+        loader.add_xpath(
+            'author', '//a[@rel="author"]/text()'
+        )
+        loader.add_xpath(
+            'desc', '(//*[@class="summary module"])[1]//p/text()'
+        )
+        loader.add_xpath(
+            'body', '//*[@id="chapters"]//div/p/text()'
+        )
+        loader.add_value(
+            'url', response.url
+        )
+        loader.add_value(
+            'site', 'archiveofourown.org'
+        )
+        loader.add_xpath(
+            'theme', '//dd[@class="fandom tags"]//a/text()'
+        )
         yield loader.load_item()
 @
 % }}}
 
-I haven't yet figured out what signal the spiders should send to avoid shutting down the reactor (which cannot be restarted) before all three are finished (if they are all run together).
+I haven't yet figured out what signal the spiders should send to avoid shutting
+down the reactor (which cannot be restarted) before all three are finished (if
+they are all run together).
 % callback {{{
 <<callback>>=
 # callback fired when the spider is closed
@@ -381,9 +487,18 @@ ff_crawler = Crawler(ff_spider, settings)
 le_crawler = Crawler(le_spider, settings)
 ao_crawler = Crawler(ao_spider, settings)
 # configure signals
-ff_crawler.signals.connect(callback, signal=signals.spider_closed)
-le_crawler.signals.connect(callback, signal=signals.spider_closed)
-ao_crawler.signals.connect(callback, signal=signals.spider_closed)
+ff_crawler.signals.connect(
+    callback, 
+    signal = signals.spider_closed
+)
+le_crawler.signals.connect(
+    callback,
+    signal = signals.spider_closed
+)
+ao_crawler.signals.connect(
+    callback,
+    signal = signals.spider_closed
+)
 
 # configure and start the crawler
 # crawler.configure()
@@ -405,14 +520,17 @@ reactor.run()
 
 \section{Training a \href{https://pypi.python.org/pypi/ChatterBot}{ChatterBot}}
 
-<<chatbot>>=
+% chatbot_creation {{{
+<<chatbot_creation>>=
 chatbot = ChatBot(
-    "Sasuke",
+    "Mary Sue",
     io_adapter = "chatterbot.adapters.io.NoOutputAdapter"
 )
 # chatbot.train("chatterbot.corpus.english")
 @
+% }}}
 
+% training {{{
 <<training_display, evaluate=False>>=
 file = open('le_products.jl')
 
@@ -429,17 +547,26 @@ for line in file.readlines():
     if conversation:
         chatbot.train(conversation)
 @
+% }}}
 
-<<conversation>>=
+% conversation {{{
+<<conversation, evaluate=False>>=
 print(
     chatbot.get_response("Hello")
 )
 @
+% }}}
 
 Unfortunately, once the chatbot has been trained on a decent amount of data, it
 becomes unusably slow. This is almost certainly a result of its storage method
 (a flat database stored to disk) and the nature of its implementation (in
 Python).
+
+% \clearpage
+
+% Just to test it:
+
+% \inputminted{python}{fanfiction.py}
 
 \end{document}
 % vim: set fdm=marker fdl=0 :

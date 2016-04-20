@@ -1,7 +1,7 @@
 
 from scrapy import signals, Spider, Item, Field, Request
 from scrapy.crawler import Crawler
-from scrapy.exporters import XmlItemExporter, JsonLinesItemExporter
+from scrapy.exporters import JsonLinesItemExporter
 from scrapy.loader import ItemLoader
 from scrapy.loader.processors import Join, MapCompose, TakeFirst
 from scrapy.settings import Settings
@@ -46,12 +46,18 @@ class JsonLinesExportPipeline(object):
     @classmethod
     def from_crawler(cls, crawler):
         pipeline = cls()
-        crawler.signals.connect(pipeline.spider_opened, signals.spider_opened)
-        crawler.signals.connect(pipeline.spider_closed, signals.spider_closed)
+        crawler.signals.connect(
+            pipeline.spider_opened,
+            signals.spider_opened
+        )
+        crawler.signals.connect(
+            pipeline.spider_closed,
+            signals.spider_closed
+        )
         return pipeline
 
     def spider_opened(self, spider):
-        file = open('%s_products.jl' % spider.name, 'w+b')
+        file = open('%s_stories.jl' % spider.name, 'w+b')
         self.files[spider] = file
         self.exporter = JsonLinesItemExporter(file)
         self.exporter.start_exporting()
@@ -84,22 +90,33 @@ class FFSpider(Spider):
     ]
 
     def parse(self, response):
-        for href in response.xpath('//td[@valign="TOP"]/div/a/@href'):
+        tags = response.xpath(
+            '//td[@valign="TOP"]/div/a/@href'
+        )
+        for href in tags:
             url = response.urljoin(href.extract())
             yield Request(url, callback = self.parse_tag)
 
     def parse_tag(self, response):
-        for href in response.xpath('//div/center[1]/a[contains(text(), "Next")]/@href'):
+        next = response.xpath(
+            '//center[1]/a[contains(text(), "Next")]/@href'
+        )
+        for href in next:
             url = response.urljoin(href.extract())
             yield Request(url, callback = self.parse_tag)
 
-        for href in response.xpath('//div[contains(@class,"z-list")]/a[1]/@href'):
+        stories = response.xpath(
+            '//div[contains(@class,"z-list")]/a[1]/@href'
+        )
+        for href in stories:
             long_url = response.urljoin(href.extract())
             url      = '/'.join(long_url.split('/')[0:-1])
             yield Request(url, callback = self.parse_story)
 
     def parse_story(self, response):
-        header  = response.xpath('//span[@class="xgray xcontrast_txt"]/text()')
+        header  = response.xpath(
+            '//span[@class="xgray xcontrast_txt"]/text()'
+        )
         head    = header.extract()[1]
         chapter = int(response.url.split('/')[-1])
         more    = re.search('Chapters: [0-9]*', head)
@@ -113,14 +130,30 @@ class FFSpider(Spider):
                 yield Request(url, callback = self.parse_story)
 
         loader = FFItemLoader(StoryItem(), response=response)
-        loader.add_xpath('title', '//*[@id="profile_top"]/b/text()')
-        loader.add_xpath('author', '//*[@id="profile_top"]/a[1]/text()')
-        loader.add_xpath('desc', '//*[@id="profile_top"]/div')
-        loader.add_xpath('body', '//*[@id="storytext"]')
-        loader.add_value('url', response.url)
-        loader.add_value('site', 'fanfiction.net')
-        loader.add_value('theme', '')
-        loader.add_value('page', str(chapter))
+        loader.add_xpath(
+            'title', '//*[@id="profile_top"]/b/text()'
+        )
+        loader.add_xpath(
+            'author', '//*[@id="profile_top"]/a[1]/text()'
+        )
+        loader.add_xpath(
+            'desc', '//*[@id="profile_top"]/div'
+        )
+        loader.add_xpath(
+            'body', '//*[@id="storytext"]'
+        )
+        loader.add_value(
+            'url', response.url
+        )
+        loader.add_value(
+            'site', 'fanfiction.net'
+        )
+        loader.add_value(
+            'theme', ''
+        )
+        loader.add_value(
+            'page', str(chapter)
+        )
         yield loader.load_item()
 
 class LESpider(Spider):
@@ -166,27 +199,53 @@ class LESpider(Spider):
     ]
 
     def parse(self, response):
-        for href in response.xpath('//*[@id="content"]/div/div/h3/a/@href'):
-            url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_story)
-        for href in response.xpath('//*[@class="b-pager-next"]/@href'):
+        next = response.xpath(
+            '//*[@class="b-pager-next"]/@href'
+        )
+        for href in next:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse)
 
+        stories = response.xpath(
+            '//*[@id="content"]/div/div/h3/a/@href'
+        )
+        for href in stories:
+            url = response.urljoin(href.extract())
+            yield Request(url, callback=self.parse_story)
+
     def parse_story(self, response):
-        for href in response.xpath('//*[@class="b-pager-next"]/@href'):
+        next = response.xpath(
+            '//*[@class="b-pager-next"]/@href'
+        )
+        for href in next:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse_story)
 
         loader = StoryItemLoader(StoryItem(), response=response)
-        loader.add_xpath('title', '//h1/text()')
-        loader.add_xpath('author', '//*[@id="content"]/div[2]/span[1]/a/text()')
-        loader.add_value('desc', '')
-        loader.add_xpath('theme', ('//*[@id="content"]/div[1]/a/text()'))
-        loader.add_xpath('body', '//*[@id="content"]/div[3]/div')
-        loader.add_value('url', response.url)
-        loader.add_value('site', 'literotica.com')
-        loader.add_xpath('page', '//*[@class="b-pager-active"]/text()')
+        loader.add_xpath(
+            'title', '//h1/text()'
+        )
+        loader.add_xpath(
+            'author', '//*[@id="content"]/div[2]/span[1]/a/text()'
+        )
+        loader.add_value(
+            'desc', ''
+        )
+        loader.add_xpath(
+            'theme', ('//*[@id="content"]/div[1]/a/text()')
+        )
+        loader.add_xpath(
+            'body', '//*[@id="content"]/div[3]/div'
+        )
+        loader.add_value(
+            'url', response.url
+        )
+        loader.add_value(
+            'site', 'literotica.com'
+        )
+        loader.add_xpath(
+            'page', '//*[@class="b-pager-active"]/text()'
+        )
         yield loader.load_item()
 
 class AOSpider(Spider):
@@ -197,34 +256,59 @@ class AOSpider(Spider):
     ]
 
     def parse(self, response):
-        for href in response.xpath('//h3/a/@href'):
+        genres = response.xpath(
+            '//h3/a/@href'
+        )
+        for href in genres:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse_genre)
 
     def parse_genre(self, response):
-        for href in response.xpath('//li/ul/li/a/@href'):
+        tags = response.xpath(
+            '//li/ul/li/a/@href'
+        )
+        for href in tags:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse_tag)
         
 
     def parse_tag(self, response):
-        for href in response.xpath('(//ol[@role="navigation"])[1]/li[last()]/a/@href'):
+        next = response.xpath(
+            '(//ol[@role="navigation"])[1]/li[last()]/a/@href'
+        )
+        for href in next:
             url = response.urljoin(href.extract())
             yield Request(url, callback=self.parse_tag)
 
-        for href in response.xpath('//h4/a[1]/@href'):
-            url = response.urljoin(href.extract()) + '?view_full_work=true&view_adult=true'
+        stories = response.xpath('//h4/a[1]/@href')
+        for href in stories:
+            extension = '?view_full_work=true&view_adult=true'
+            url = response.urljoin(href.extract()) + extension
             yield Request(url, callback=self.parse_story)
 
     def parse_story(self, response):
         loader = AOItemLoader(StoryItem(), response=response)
-        loader.add_xpath('title', '//h2/text()')
-        loader.add_xpath('author', '//a[@rel="author"]/text()')
-        loader.add_xpath('desc', '(//*[@class="summary module"])[1]//p/text()')
-        loader.add_xpath('body', '//*[@id="chapters"]//div/p/text()')
-        loader.add_value('url', response.url)
-        loader.add_value('site', 'archiveofourown.org')
-        loader.add_xpath('theme', '//dd[@class="fandom tags"]//a/text()')
+        loader.add_xpath(
+            'title', '//h2/text()'
+        )
+        loader.add_xpath(
+            'author', '//a[@rel="author"]/text()'
+        )
+        loader.add_xpath(
+            'desc', '(//*[@class="summary module"])[1]//p/text()'
+        )
+        loader.add_xpath(
+            'body', '//*[@id="chapters"]//div/p/text()'
+        )
+        loader.add_value(
+            'url', response.url
+        )
+        loader.add_value(
+            'site', 'archiveofourown.org'
+        )
+        loader.add_xpath(
+            'theme', '//dd[@class="fandom tags"]//a/text()'
+        )
         yield loader.load_item()
 
 # callback fired when the spider is closed
@@ -256,9 +340,18 @@ ff_crawler = Crawler(ff_spider, settings)
 le_crawler = Crawler(le_spider, settings)
 ao_crawler = Crawler(ao_spider, settings)
 # configure signals
-ff_crawler.signals.connect(callback, signal=signals.spider_closed)
-le_crawler.signals.connect(callback, signal=signals.spider_closed)
-ao_crawler.signals.connect(callback, signal=signals.spider_closed)
+ff_crawler.signals.connect(
+    callback, 
+    signal = signals.spider_closed
+)
+le_crawler.signals.connect(
+    callback,
+    signal = signals.spider_closed
+)
+ao_crawler.signals.connect(
+    callback,
+    signal = signals.spider_closed
+)
 
 # configure and start the crawler
 # crawler.configure()
@@ -275,7 +368,7 @@ log.configure_logging()
 reactor.run()
 
 chatbot = ChatBot(
-    "Sasuke",
+    "Mary Sue",
     io_adapter = "chatterbot.adapters.io.NoOutputAdapter"
 )
 # chatbot.train("chatterbot.corpus.english")
@@ -295,7 +388,6 @@ for line in file.readlines():
     if conversation:
         chatbot.train(conversation)
 
-<<conversation>>=
 print(
     chatbot.get_response("Hello")
 )
