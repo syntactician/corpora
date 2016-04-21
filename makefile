@@ -6,6 +6,12 @@ P := python3
 T := ptangle
 W := pweave $M
 
+NAME := fanfiction
+SRC  := $(NAME).mdw
+TEX  := $(NAME).tex
+DOC  := $(NAME).pdf
+PY   := $(NAME).py
+
 all: weave tangle
 
 sweep:
@@ -30,14 +36,14 @@ destroy: clean
 weave:
 	# @echo 'figure.autolayout : True' > matplotlibrc
 	# @ptangle fanfiction.mdw && python3 fanfiction.py
-	@$W fanfiction.mdw
-	@sed -i -e '/minted/s/\%s/python/' fanfiction.tex
-	@$L fanfiction
-	@$L fanfiction
+	@$W $(SRC)
+	@sed -i -e '/minted/s/\%s/python/' $(TEX)
+	@$L $(NAME)
+	@$L $(NAME)
 	@$(MAKE) sweep
 
 tangle:
-	@$T fanfiction.mdw
+	@$T $(SRC)
 
 run: tangle
-	@$P fanfiction.py
+	@$P $(PY)
