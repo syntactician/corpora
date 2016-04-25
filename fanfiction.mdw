@@ -1,5 +1,5 @@
 % TODO:
-% * cut down long lines (remember // in xpath)
+% * finish ff_spider
 
 \documentclass[man,12pt]{apa6}
 \usepackage[colorlinks=true]{hyperref}
@@ -35,32 +35,54 @@ in/for Python 3, and is intended for and tested under only
 }
 
 Resolving the dependencies for this code is non-trivial.
-Ideally, pip should be able to handle the dependencies:
+Ideally, \href{pip} should be able to handle the dependencies:
 
 \inputminted{bash}{pip.sh}
 
 \noindent
-However, if you are running OS X, pip will likely fail building lxml, since OS
-X does not ship libxml by default. This can usually be solved by (re)installing
-the Xcode command line tools: \mintinline{bash}{xcode-select install}. However,
-this is not always successful.  Additionally, if you have a Python distribution
-installed already, you may not want to attempt to alter it to accomodate this
-program, especially if you make use of a stable version of any of its
-dependencies. 
+
+There are some issues with using pip, however. If you are using an operating
+system with a package manager, you \href{}{may} wish to allow that package
+manager to handle the packages which constitute your Python environment.
+%
+If this is your preference, this code presents an unusual complication. It
+relies on both bleeding-edge versions of several Python packages (likely to be
+ahead of the stable versions packaged for your OS) and on some Python modules
+that are not packaged for most\footnote{
+	Arch Linux is likely the only exception, as I have personally published
+	\href{}{packages} to satisfy all dependencies the distribution lacked.
+} operating systems.
+%
+As a result, you may not want to attempt to alter your Python installation to
+accomodate this program.
+%
+Additionally, if you are running OS X, pip will likely fail building
+\href{}{lxml} (a dependency of Scrapy), since OS X does not ship libxml by
+default. This can usually be solved by (re)installing the Xcode command line
+tools: \mintinline{bash}{xcode-select install}. However, this is not always
+successful.  
 
 In either case, the best solution is probably virtualization. The following
-Dockerfile is minimally sufficient to create a suitable environment.\footnote{
+Dockerfiles are minimally sufficient to create suitable environments in Ubuntu
+16.04 Xerial Xerus (which must still rely on pip) and Arch Linux (which is
+altogether more intensive to set up), respectively.\footnote{
 	Virtualenv is another good solution to avoid altering your Python
 	installation, but cannot be used to satisfy the dependence on libxml, since
 	it manages only Python-internal dependencies.
 }
 
-\inputminted{docker}{Dockerfile}
+Ubuntu:
 
-This Dockerfile installs the following dependencies, against which the code has
-been tested to run on Ubuntu 16.04:
+\inputminted{docker}{ubuntu.docker}
 
-\inputminted{python}{requirements.txt}
+Arch Linux:
+
+\inputminted{docker}{arch.docker}
+
+% This Dockerfile installs the following dependencies, against which the code has
+% been tested to run on Ubuntu 16.04:
+
+% \inputminted{python}{requirements.txt}
 
 
 
@@ -70,19 +92,32 @@ Import stuff:
 
 % import {{{
 <<import>>=
-from scrapy import signals, Spider, Item, Field, Request
+from chatterbot import ChatBot
+from datetime import datetime
+from glob import glob
+from json import loads
+from nltk import ConditionalFreqDist
+from nltk import FreqDist
+from nltk.corpus import stopwords
+from nltk.data import load
+from nltk.tokenize import word_tokenize
+from scrapy import Field
+from scrapy import Item
+from scrapy import Request
+from scrapy import Spider
+from scrapy import signals
 from scrapy.crawler import Crawler
 from scrapy.exporters import JsonLinesItemExporter
 from scrapy.loader import ItemLoader
-from scrapy.loader.processors import Join, MapCompose, TakeFirst
+from scrapy.loader.processors import Join
+from scrapy.loader.processors import MapCompose
+from scrapy.loader.processors import TakeFirst
 from scrapy.settings import Settings
 from scrapy.utils import log
 from twisted.internet import reactor
-# from bs4 import BeautifulSoup
-from chatterbot import ChatBot
 from w3lib.html import remove_tags
-import re
 import json
+import re
 @
 % }}}
 
@@ -99,17 +134,51 @@ within a larger work, the \texttt{site} it was scraped from, and the
 % I may further define items for each site (inheriting the StoryItem class) for
 % extra data
 
-% item {{{
-<<item>>=
+% story_item {{{
+<<story_item>>=
 class StoryItem(Item):
-    title  = Field()
-    author = Field()
-    desc   = Field()
-    body   = Field()
-    url    = Field()
-    site   = Field()
-    theme  = Field()
-    page   = Field()
+    title    = Field()
+    author   = Field()
+    desc     = Field()
+    body     = Field()
+    url      = Field()
+    site     = Field()
+    chapter  = Field()
+    category = Field()
+@
+% }}}
+
+% le_item {{{
+<<le_item>>=
+@
+% }}}
+
+% ff_item {{{
+<<ff_item>>=
+class FFItem(StoryItem):
+    id        = Field()
+    rating    = Field()
+    language  = Field()
+    words     = Field()
+    chapters  = Field()
+    complete  = Field()
+    comments  = Field()
+    likes     = Field()
+    marks     = Field()
+    published = Field()
+    updated   = Field()
+@
+% }}}
+
+% ao_item {{{
+<<ao_item>>=
+class AOItem(FFItem):
+    fandom     = Field()
+    characters = Field()
+    ships      = Field()
+    tags       = Field()
+    warnings   = Field()
+    hits       = Field()
 @
 % }}}
 
@@ -143,8 +212,13 @@ class FFItemLoader(StoryItemLoader):
     desc_out = Join()
 
 class AOItemLoader(StoryItemLoader):
-    body_out  = Join()
-    theme_out = Join(', ')
+    body_out       = Join()
+    category_out   = Join(', ')
+    warnings_out   = Join(', ')
+    fandom_out     = Join(', ')
+    characters_out = Join(', ')
+    ships_out      = Join(', ')
+    tags_out       = Join(', ')
 @
 % }}}
 
@@ -237,9 +311,10 @@ class FFSpider(Spider):
         header  = response.xpath(
             '//span[@class="xgray xcontrast_txt"]/text()'
         )
-        head    = header.extract()[1]
+        head    = header.extract()
         chapter = int(response.url.split('/')[-1])
-        more    = re.search('Chapters: [0-9]*', head)
+        more    = re.search('Chapters: [0-9]*', head[1])
+
         if more and chapter == 1:
             chapters = int(more.group(0).split()[1])
             base_url = '/'.join(response.url.split('/')[0:-1])
@@ -249,7 +324,26 @@ class FFSpider(Spider):
             for url in urls:
                 yield Request(url, callback = self.parse_story)
 
-        loader = FFItemLoader(StoryItem(), response=response)
+        time_xpath  = response.xpath(
+            '//span[@data-xutime]/@data-xutime'
+        )
+        times       = time_xpath.extract()
+        u_published = float(times[0])
+        d_published = datetime.fromtimestamp(u_published)
+        published   = d_published.strftime('%Y-%m-%d')
+        u_updated   = float(next(reversed(times)))
+        d_updated   = datetime.fromtimestamp(u_updated)
+        updated     = d_updated.strftime('%Y-%m-%d')
+
+        # info    = head[1].split(' - ')
+        # language = info[1]
+        # category = info[2]
+        # characters = info[3]
+        # words = ''.join([s for s in info[5] if s.isdigit()])
+
+        complete = str(bool('Complete' in ' '.join(head)))
+
+        loader = FFItemLoader(FFItem(), response=response)
         loader.add_xpath(
             'title', '//*[@id="profile_top"]/b/text()'
         )
@@ -269,10 +363,16 @@ class FFSpider(Spider):
             'site', 'fanfiction.net'
         )
         loader.add_value(
-            'theme', ''
+            'chapter', str(chapter)
+        )
+        loader.add_xpath(
+            'rating', '//span[@class="xgray xcontrast_txt"]/a/text()'
         )
         loader.add_value(
-            'page', str(chapter)
+            'published', published
+        )
+        loader.add_value(
+            'updated', updated
         )
         yield loader.load_item()
 @
@@ -331,14 +431,14 @@ class LESpider(Spider):
         )
         for href in next:
             url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse)
+            yield Request(url, callback = self.parse)
 
         stories = response.xpath(
             '//*[@id="content"]/div/div/h3/a/@href'
         )
         for href in stories:
             url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_story)
+            yield Request(url, callback = self.parse_story)
 
     def parse_story(self, response):
         next = response.xpath(
@@ -346,9 +446,9 @@ class LESpider(Spider):
         )
         for href in next:
             url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_story)
+            yield Request(url, callback = self.parse_story)
 
-        loader = StoryItemLoader(StoryItem(), response=response)
+        loader = LEItemLoader(LEItem(), response = response)
         loader.add_xpath(
             'title', '//h1/text()'
         )
@@ -359,7 +459,7 @@ class LESpider(Spider):
             'desc', ''
         )
         loader.add_xpath(
-            'theme', ('//*[@id="content"]/div[1]/a/text()')
+            'category', ('//*[@id="content"]/div[1]/a/text()')
         )
         loader.add_xpath(
             'body', '//*[@id="content"]/div[3]/div'
@@ -393,7 +493,7 @@ class AOSpider(Spider):
         )
         for href in genres:
             url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_genre)
+            yield Request(url, callback = self.parse_genre)
 
     def parse_genre(self, response):
         tags = response.xpath(
@@ -401,7 +501,7 @@ class AOSpider(Spider):
         )
         for href in tags:
             url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_tag)
+            yield Request(url, callback = self.parse_tag)
         
 
     def parse_tag(self, response):
@@ -410,16 +510,29 @@ class AOSpider(Spider):
         )
         for href in next:
             url = response.urljoin(href.extract())
-            yield Request(url, callback=self.parse_tag)
+            yield Request(url, callback = self.parse_tag)
 
         stories = response.xpath('//h4/a[1]/@href')
         for href in stories:
-            extension = '?view_full_work=true&view_adult=true'
+            extension = '?view_adult=true&style=disable'
             url = response.urljoin(href.extract()) + extension
-            yield Request(url, callback=self.parse_story)
+            yield Request(url, callback = self.parse_story)
 
     def parse_story(self, response):
-        loader = AOItemLoader(StoryItem(), response=response)
+        next = response.xpath(
+            'a[contains(text(), "Next Chapter →")]/@href'
+        )
+        for href in next:
+            extension = '?view_adult=true&style=disable'
+            url = response.urljoin(href.extract()) + extension
+            yield Request(url, callback = self.parse_story)
+
+        chapter_path   = response.xpath('//dd[@class="chapters"]/text()')
+        chapters       = tuple(chapter_path.extract()[0].split('/'))
+        current, total = chapters
+        complete       = str(bool(current == total))
+
+        loader = AOItemLoader(AOItem(), response = response)
         loader.add_xpath(
             'title', '//h2/text()'
         )
@@ -439,7 +552,58 @@ class AOSpider(Spider):
             'site', 'archiveofourown.org'
         )
         loader.add_xpath(
-            'theme', '//dd[@class="fandom tags"]//a/text()'
+            'category', '//dd[@class="category tags"]//a/text()'
+        )
+        loader.add_xpath(
+            'language', '//dd[@class="language"]/text()'
+        )
+        loader.add_xpath(
+            'rating', '//dd[@class="rating tags"]//a/text()'
+        )
+        loader.add_xpath(
+            'warnings', '//dd[@class="warning tags"]//a/text()'
+        )
+        loader.add_xpath(
+            'fandom', '//dd[@class="fandom tags"]//a/text()'
+        )
+        loader.add_xpath(
+            'characters', '//dd[@class="character tags"]//a/text()'
+        )
+        loader.add_xpath(
+            'ships', '//dd[@class="relationship tags"]//a/text()'
+        )
+        loader.add_xpath(
+            'tags', '//dd[@class="freeform tags"]//a/text()'
+        )
+        loader.add_xpath(
+            'hits', '//dd[@class="hits"]/text()'
+        )
+        loader.add_xpath(
+            'published', '//dd[@class="published"]/text()'
+        )
+        loader.add_xpath(
+            'updated', '//dd[@class="status"]/text()'
+        )
+        loader.add_xpath(
+            'words', '//dd[@class="words"]/text()'
+        )
+        loader.add_xpath(
+            'comments', '//dd[@class="comments"]/text()'
+        )
+        loader.add_xpath(
+            'likes', '//dd[@class="kudos"]/text()'
+        )
+        loader.add_xpath(
+            'marks', '//dd[@class="bookmarks"]/a/text()'
+        )
+        loader.add_xpath(
+            'hits', '//dd[@class="hits"]/text()'
+        )
+        loader.add_value(
+            'chapter', current
+        )
+        loader.add_value(
+            'complete', complete
         )
         yield loader.load_item()
 @
@@ -504,8 +668,8 @@ ao_crawler.signals.connect(
 # crawler.configure()
 # crawler.crawl(spider)
 # ff_crawler.crawl()
-le_crawler.crawl()
-# ao_crawler.crawl()
+# le_crawler.crawl()
+ao_crawler.crawl()
 
 # start logging
 # log.start()
@@ -517,6 +681,281 @@ reactor.run()
 % }}}
 
 \section{Analysis with \href{http://www.nltk.org}{NLTK}}
+
+% shared_objects {{{
+<<shared>>=
+stop = stopwords.words('english')
+tokenizer = load('tokenizers/punkt/english.pickle')
+@
+% }}}
+
+% my_immortal {{{
+<<my_immortal>>=
+immortal_chapters = []
+immortal_words    = []
+
+for path in glob("immortal/*.txt"):
+        file = open(path)
+        chapter = file.read()
+        chapter_tuple = (chapter, 'real')
+
+        words = word_tokenize(chapter)
+
+        immortal_chapters.append(chapter_tuple)
+        immortal_words.extend(words)
+
+fd = FreqDist(immortal_words)
+fd.plot(26)
+@
+
+<<my_immortal_filtered>>=
+filtered_immortal_words = [ w.lower() for w in immortal_words if w.isalpha() ]
+filtered_immortal_words = [ w for w in filtered_immortal_words if w not in stop ]
+
+
+fd  = FreqDist(filtered_immortal_words)
+fd.plot(26)
+@
+% }}}
+
+% my_immortal_extra {{{
+<<my_immortal_extra>>=
+i_stop = [
+    'da',
+    'dat',
+    'u',
+    'ur',
+    'wif',
+    'wuz',
+    'chapter'
+]
+
+filtered_immortal_words = [ w.lower() for w in immortal_words if w.isalpha() ]
+filtered_immortal_words = [ w for w in filtered_immortal_words if w not in stop and w not in i_stop ]
+
+My_Immortal = filtered_immortal_words
+
+fd  = FreqDist(filtered_immortal_words)
+fd.plot(26)
+@
+% }}}
+
+% ao_hp {{{
+<<ao_hp>>=
+# fake
+
+file = open('ao_hp_stories.jl')
+
+ao_chapters = []
+ao_words    = []
+AO3         = []
+
+i = 1100
+for line in file.readlines():
+    chapter_obj = loads(line)
+    if chapter_obj['language'] == 'English':
+        try:
+            chapter = chapter_obj['body']
+            chapter_tuple = (chapter, 'fake')
+            words = word_tokenize(chapter)
+            ao_words.extend(words)
+            ao_chapters.append(chapter_tuple)
+            if i > 0:
+                AO3.extend(words)
+                i -= 1
+        except:
+            pass
+
+# i = 1100
+# for line in file.readlines():
+#     if i > 0:
+#         chapter_obj = loads(line)
+#         if chapter_obj['language'] == 'English':
+#             try:
+#                 chapter = chapter_obj['body']
+#                 chapter_tuple = (chapter, 'fake')
+#                 words = word_tokenize(chapter)
+#                 ao_words.extend(words)
+#                 ao_chapters.append(chapter_tuple)
+#                 AO3.extend(words)
+#             except:
+#                 pass
+#     i += 1
+
+fd = FreqDist(ao_words)
+fd.plot(26)
+@
+
+<<ao_hp_filter>>=
+filtered_ao_words = [ w.lower() for w in ao_words if w.isalpha() ]
+filtered_ao_words = [ w for w in filtered_ao_words if w not in stop ]
+
+fd = FreqDist(filtered_ao_words)
+fd.plot(26)
+@
+% }}}
+
+% ff_hp {{{
+<<ff_hp>>=
+# fake
+
+file = open('ff_hp_stories.jl')
+
+ff_chapters = []
+ff_words    = []
+fanfiction  = []
+
+i = 950
+for line in file.readlines():
+    chapter_obj = loads(line)
+    try:
+        chapter = chapter_obj['body']
+        chapter_tuple = (chapter, 'fake')
+        words = word_tokenize(chapter)
+        ff_words.extend(words)
+        ff_chapters.append(chapter_tuple)
+        if i > 0:
+            fanfiction.extend(words)
+            i -= 1
+    except:
+        pass
+
+# i = 950
+# for line in file.readlines():
+#     if i > 0:
+#         chapter_obj = loads(line)
+#         try:
+#             chapter = chapter_obj['body']
+#             chapter_tuple = (chapter, 'fake')
+#             words = word_tokenize(chapter)
+#             ff_words.extend(words)
+#             ff_chapters.append(chapter_tuple)
+#             fanfiction.extend(words)
+#         except:
+#             pass
+#         i -= 1
+
+fd = FreqDist(ff_words)
+fd.plot(26)
+@
+
+<<ff_hp_filter>>=
+ff_stop = stop
+for language in ('spanish', 'portuguese', 'french'):
+    ff_stop.extend(
+        stopwords.words(language)
+    )
+
+filtered_ff_words = [ w.lower() for w in ff_words if w.isalpha() ]
+filtered_ff_words = [ w for w in filtered_ff_words if w not in ff_stop ]
+
+fd = FreqDist(filtered_ff_words)
+fd.plot(26)
+@
+% }}}
+
+% real_hp {{{
+<<real_hp>>=
+# real
+
+real_chapters = []
+real_words    = []
+dir = 'hp'
+
+for path in glob("hp/*.txt"):
+        # soup = BeautifulSoup(open(path))
+        # chapter = soup.findAll(text=True)[0]
+        file = open(path)
+        chapter = file.read()
+        chapter_tuple = (chapter, 'real')
+
+        words = word_tokenize(chapter)
+
+        real_chapters.append(chapter_tuple)
+        real_words.extend(words)
+
+fd = FreqDist(real_words)
+fd.plot(26)
+@
+
+
+<<real_hp_filter>>=
+filtered_real_words = [ w.lower() for w in real_words if w.isalpha() ]
+filtered_real_words = [ w for w in filtered_real_words if w not in stop ]
+
+Rowling = filtered_real_words
+
+fd  = FreqDist(filtered_real_words)
+fd.plot(26)
+@
+% }}}
+
+% cfd {{{
+<<cfd>>=
+names = (
+    'neville',
+    'draco',
+    'dumbledore',
+    'fred',
+    'george',
+    'ginny',
+    'harry',
+    'hermione',
+    'james',
+    'lilly',
+    'luna',
+    'lupin',
+    'malfoy',
+    'pansy',
+    'potter',
+    'remus',
+    'ron',
+    'severus',
+    'sirius',
+    'snape',
+    'weasley'
+)
+
+AO3 = [ w.lower() for w in AO3 if w.isalpha() ]
+AO3 = [ w for w in AO3 if w not in stop ]
+
+fanfiction = [ w.lower() for w in fanfiction if w.isalpha() ]
+fanfiction = [ w for w in fanfiction if w not in stop ]
+
+My_Immortal = [ w.lower() for w in My_Immortal if w.isalpha() ]
+My_Immortal = [ w for w in My_Immortal if w not in stop and w not in i_stop]
+
+unified_words = (
+    (source, word)
+    for source in (
+        'Rowling',
+        'AO3',
+        'fanfiction',
+        'My_Immortal'
+    )
+    for word in eval(source)
+    if word in names
+)
+
+cfd = ConditionalFreqDist(unified_words)
+
+cfd.plot()
+@
+
+<<all_cfd>>=
+unified_words = (
+    (source, word)
+    for source in (
+        'Rowling',
+        'AO3',
+        'fanfiction',
+        'My_Immortal'
+    )
+    for word in eval(source)
+)
+cfd = ConditionalFreqDist(unified_words)
+@
+% }}}
 
 \section{Training a \href{https://pypi.python.org/pypi/ChatterBot}{ChatterBot}}
 
