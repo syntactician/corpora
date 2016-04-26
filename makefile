@@ -23,9 +23,7 @@ sweep:
 		*.tex*       \
 		__pycache__  \
 		_minted*/    \
-		figures/     \
 		matplotlibrc
-
 
 clean: sweep
 	@rm -f *.pdf
@@ -34,7 +32,7 @@ destroy: clean
 	@rm -f *.jl *.py
 
 weave:
-	# @echo 'figure.autolayout : True' > matplotlibrc
+	@echo 'figure.autolayout : True' > matplotlibrc
 	# @ptangle fanfiction.mdw && python3 fanfiction.py
 	@$W $(SRC)
 	@sed -i -e '/minted/s/\%s/python/' $(TEX)
