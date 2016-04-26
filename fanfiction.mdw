@@ -689,80 +689,68 @@ tokenizer = load('tokenizers/punkt/english.pickle')
 @
 % }}}
 
-% my_immortal {{{
-<<my_immortal>>=
-immortal_chapters = []
-immortal_words    = []
+% real_hp {{{
+<<real_hp>>=
+# real
 
-for path in glob("immortal/*.txt"):
+real_chapters = []
+real_words    = []
+dir = 'hp'
+
+for path in glob("hp/*.txt"):
+        # soup = BeautifulSoup(open(path))
+        # chapter = soup.findAll(text=True)[0]
         file = open(path)
         chapter = file.read()
         chapter_tuple = (chapter, 'real')
 
-        words = word_tokenize(chapter)
+        words = [ w.lower() for w in word_tokenize(chapter) ]
 
-        immortal_chapters.append(chapter_tuple)
-        immortal_words.extend(words)
+        real_chapters.append(chapter_tuple)
+        real_words.extend(words)
 
-fd = FreqDist(immortal_words)
-fd.plot(26)
-@
+word_total  = len(real_words)
+harry_total = real_words.count('harry')
 
-<<my_immortal_filtered>>=
-filtered_immortal_words = [ w.lower() for w in immortal_words if w.isalpha() ]
-filtered_immortal_words = [ w for w in filtered_immortal_words if w not in stop ]
-
-
-fd  = FreqDist(filtered_immortal_words)
+fd = FreqDist(real_words)
 fd.plot(26)
 @
 % }}}
 
-% my_immortal_extra {{{
-<<my_immortal_extra>>=
-i_stop = [
-    'da',
-    'dat',
-    'u',
-    'ur',
-    'wif',
-    'wuz',
-    'chapter'
-]
+% real_hp_filter {{{
+<<real_hp_filter>>=
+# filtered_real_words = [ w.lower() for w in real_words if w.isalpha() ]
+filtered_real_words = [ w for w in real_words if w not in stop ]
 
-filtered_immortal_words = [ w.lower() for w in immortal_words if w.isalpha() ]
-filtered_immortal_words = [ w for w in filtered_immortal_words if w not in stop and w not in i_stop ]
+Rowling = filtered_real_words
 
-My_Immortal = filtered_immortal_words
-
-fd  = FreqDist(filtered_immortal_words)
+fd  = FreqDist(filtered_real_words)
 fd.plot(26)
 @
 % }}}
 
 % ao_hp {{{
 <<ao_hp>>=
-# fake
-
 file = open('ao_hp_stories.jl')
 
 ao_chapters = []
 ao_words    = []
 AO3         = []
+AO3_normed  = []
 
-i = 1100
 for line in file.readlines():
     chapter_obj = loads(line)
     if chapter_obj['language'] == 'English':
         try:
             chapter = chapter_obj['body']
             chapter_tuple = (chapter, 'fake')
-            words = word_tokenize(chapter)
+            words = [ w.lower() for w in word_tokenize(chapter) ]
             ao_words.extend(words)
             ao_chapters.append(chapter_tuple)
-            if i > 0:
+            if len(AO3) < word_total:
                 AO3.extend(words)
-                i -= 1
+            if AO3_normed.count('harry') < harry_total:
+                AO3_normed.extend(words)
         except:
             pass
 
@@ -785,10 +773,12 @@ for line in file.readlines():
 fd = FreqDist(ao_words)
 fd.plot(26)
 @
+% }}}
 
+% ao_hp_filter {{{
 <<ao_hp_filter>>=
-filtered_ao_words = [ w.lower() for w in ao_words if w.isalpha() ]
-filtered_ao_words = [ w for w in filtered_ao_words if w not in stop ]
+# filtered_ao_words = [ w.lower() for w in ao_words if w.isalpha() ]
+filtered_ao_words = [ w for w in ao_words if w not in stop ]
 
 fd = FreqDist(filtered_ao_words)
 fd.plot(26)
@@ -797,26 +787,26 @@ fd.plot(26)
 
 % ff_hp {{{
 <<ff_hp>>=
-# fake
-
 file = open('ff_hp_stories.jl')
 
-ff_chapters = []
-ff_words    = []
-fanfiction  = []
+ff_chapters       = []
+ff_words          = []
+fanfiction        = []
+fanfiction_normed = []
 
-i = 950
+# i = 950
 for line in file.readlines():
     chapter_obj = loads(line)
     try:
         chapter = chapter_obj['body']
         chapter_tuple = (chapter, 'fake')
-        words = word_tokenize(chapter)
+        words = [ w.lower() for w in word_tokenize(chapter) ]
         ff_words.extend(words)
         ff_chapters.append(chapter_tuple)
-        if i > 0:
+        if len(fanfiction) < word_total:
             fanfiction.extend(words)
-            i -= 1
+        if fanfiction_normed.count('harry') < harry_total:
+            fanfiction_normed.extend(words)
     except:
         pass
 
@@ -838,7 +828,9 @@ for line in file.readlines():
 fd = FreqDist(ff_words)
 fd.plot(26)
 @
+% }}}
 
+% ff_hp_filter {{{
 <<ff_hp_filter>>=
 ff_stop = stop
 for language in ('spanish', 'portuguese', 'french'):
@@ -846,46 +838,65 @@ for language in ('spanish', 'portuguese', 'french'):
         stopwords.words(language)
     )
 
-filtered_ff_words = [ w.lower() for w in ff_words if w.isalpha() ]
-filtered_ff_words = [ w for w in filtered_ff_words if w not in ff_stop ]
+# filtered_ff_words = [ w.lower() for w in ff_words if w.isalpha() ]
+filtered_ff_words = [ w for w in ff_words if w not in ff_stop ]
 
 fd = FreqDist(filtered_ff_words)
 fd.plot(26)
 @
 % }}}
 
-% real_hp {{{
-<<real_hp>>=
-# real
+% my_immortal {{{
+<<my_immortal>>=
+immortal_chapters = []
+immortal_words    = []
 
-real_chapters = []
-real_words    = []
-dir = 'hp'
-
-for path in glob("hp/*.txt"):
-        # soup = BeautifulSoup(open(path))
-        # chapter = soup.findAll(text=True)[0]
+for path in glob("immortal/*.txt"):
         file = open(path)
         chapter = file.read()
         chapter_tuple = (chapter, 'real')
 
-        words = word_tokenize(chapter)
+        words = [ w.lower() for w in word_tokenize(chapter) ]
 
-        real_chapters.append(chapter_tuple)
-        real_words.extend(words)
+        immortal_chapters.append(chapter_tuple)
+        immortal_words.extend(words)
 
-fd = FreqDist(real_words)
+fd = FreqDist(immortal_words)
 fd.plot(26)
 @
+% }}}
+
+% my_immortal_filter {{{
+<<my_immortal_filter>>=
+# filtered_immortal_words = [ w.lower() for w in immortal_words if w.isalpha() ]
+filtered_immortal_words = [ w for w in immortal_words if w not in stop ]
 
 
-<<real_hp_filter>>=
-filtered_real_words = [ w.lower() for w in real_words if w.isalpha() ]
-filtered_real_words = [ w for w in filtered_real_words if w not in stop ]
+fd  = FreqDist(filtered_immortal_words)
+fd.plot(26)
+@
+% }}}
 
-Rowling = filtered_real_words
+% my_immortal_extra {{{
+<<my_immortal_extra>>=
+i_stop = [
+    'da',
+    'dat',
+    'u',
+    'ur',
+    'wif',
+    'wuz',
+    'chapter'
+]
 
-fd  = FreqDist(filtered_real_words)
+# filtered_immortal_words = [ w.lower() for w in immortal_words if w.isalpha() ]
+filtered_immortal_words = [ w for w in immortal_words if w not in stop and w not in i_stop ]
+
+immortal_scale = int(len(real_words) / len(immortal_words))
+
+My_Immortal = immortal_words * immortal_scale
+
+fd  = FreqDist(filtered_immortal_words)
 fd.plot(26)
 @
 % }}}
@@ -902,7 +913,7 @@ names = (
     'harry',
     'hermione',
     'james',
-    'lilly',
+    'lily',
     'luna',
     'lupin',
     'malfoy',
@@ -913,6 +924,7 @@ names = (
     'severus',
     'sirius',
     'snape',
+	'vamprie',
     'weasley'
 )
 
@@ -942,18 +954,25 @@ cfd = ConditionalFreqDist(unified_words)
 cfd.plot()
 @
 
-<<all_cfd>>=
+<<cfd_normed>>=
+# AO3_normed = [ w.lower() for w in AO3_normed if w.isalpha() ]
+# AO3_normed = [ w for w in AO3_normed if w not in stop ]
+
+# fanfiction_normed = [ w.lower() for w in fanfiction_normed if w.isalpha() ]
+# fanfiction_normed = [ w for w in fanfiction_normed if w not in stop ]
+
 unified_words = (
     (source, word)
     for source in (
         'Rowling',
-        'AO3',
-        'fanfiction',
-        'My_Immortal'
+        'AO3_normed',
+        'fanfiction_normed'
     )
     for word in eval(source)
+	if word in names
 )
 cfd = ConditionalFreqDist(unified_words)
+cfd.plot()
 @
 % }}}
 
