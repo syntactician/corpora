@@ -8,9 +8,9 @@
 
 \hypersetup{
 	colorlinks,
-	citecolor=Black,
-	linkcolor=Red,
-	urlcolor=Blue
+	citecolor=black,
+	linkcolor=red,
+	urlcolor=blue
 }
 
 \begin{document}
