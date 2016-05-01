@@ -1,10 +1,17 @@
 % TODO:
 % * finish ff_spider
 
-\documentclass[man,12pt]{apa6}
+\documentclass[man,12pt,natbib]{apa6}
 \usepackage[colorlinks=true]{hyperref}
 \usepackage{amssymb,amsmath,times,minted}
 \linespread{1.5}
+
+\hypersetup{
+	colorlinks,
+	citecolor=Black,
+	linkcolor=Red,
+	urlcolor=Blue
+}
 
 \begin{document}
 
@@ -720,7 +727,7 @@ fd.plot(26)
 % real_hp_filter {{{
 <<real_hp_filter>>=
 # filtered_real_words = [ w.lower() for w in real_words if w.isalpha() ]
-filtered_real_words = [ w for w in real_words if w not in stop ]
+filtered_real_words = [ w for w in real_words if w.isalpha() and w not in stop ]
 
 Rowling = filtered_real_words
 
@@ -778,7 +785,7 @@ fd.plot(26)
 % ao_hp_filter {{{
 <<ao_hp_filter>>=
 # filtered_ao_words = [ w.lower() for w in ao_words if w.isalpha() ]
-filtered_ao_words = [ w for w in ao_words if w not in stop ]
+filtered_ao_words = [ w for w in ao_words if w.isalpha() and w not in stop ]
 
 fd = FreqDist(filtered_ao_words)
 fd.plot(26)
@@ -839,7 +846,7 @@ for language in ('spanish', 'portuguese', 'french'):
     )
 
 # filtered_ff_words = [ w.lower() for w in ff_words if w.isalpha() ]
-filtered_ff_words = [ w for w in ff_words if w not in ff_stop ]
+filtered_ff_words = [ w for w in ff_words if w.isalpha() and w not in ff_stop ]
 
 fd = FreqDist(filtered_ff_words)
 fd.plot(26)
@@ -869,7 +876,7 @@ fd.plot(26)
 % my_immortal_filter {{{
 <<my_immortal_filter>>=
 # filtered_immortal_words = [ w.lower() for w in immortal_words if w.isalpha() ]
-filtered_immortal_words = [ w for w in immortal_words if w not in stop ]
+filtered_immortal_words = [ w for w in immortal_words if w.isalpha() and w not in stop ]
 
 
 fd  = FreqDist(filtered_immortal_words)
@@ -890,7 +897,7 @@ i_stop = [
 ]
 
 # filtered_immortal_words = [ w.lower() for w in immortal_words if w.isalpha() ]
-filtered_immortal_words = [ w for w in immortal_words if w not in stop and w not in i_stop ]
+filtered_immortal_words = [ w for w in immortal_words if w.isalpha() and w not in stop and w not in i_stop ]
 
 immortal_scale = int(len(real_words) / len(immortal_words))
 
@@ -924,7 +931,6 @@ names = (
     'severus',
     'sirius',
     'snape',
-	'vamprie',
     'weasley'
 )
 
@@ -1020,7 +1026,10 @@ becomes unusably slow. This is almost certainly a result of its storage method
 (a flat database stored to disk) and the nature of its implementation (in
 Python).
 
-% \clearpage
+\nocite{*}
+
+\clearpage
+\bibliography{fanfiction}
 
 % Just to test it:
 

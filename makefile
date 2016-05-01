@@ -1,6 +1,7 @@
 M := -f texminted
 S := -shell-escape
 
+B := bibtex
 L := pdflatex $S
 P := python3
 T := ptangle
@@ -12,7 +13,8 @@ TEX  := $(NAME).tex
 DOC  := $(NAME).pdf
 PY   := $(NAME).py
 
-all: weave tangle
+all:
+	@echo "You know not what you do."
 
 sweep:
 	@rm -rf              \
@@ -20,7 +22,6 @@ sweep:
 		*.fff        \
 		*.log        \
 		*.out        \
-		*.tex*       \
 		__pycache__  \
 		_minted*/    \
 		matplotlibrc
@@ -36,6 +37,15 @@ weave:
 	# @ptangle fanfiction.mdw && python3 fanfiction.py
 	@$W $(SRC)
 	@sed -i -e '/minted/s/\%s/python/' $(TEX)
+	@$L $(NAME)
+	@$S $(NAME)
+	@$L $(NAME)
+	@$(MAKE) sweep
+
+tex:
+	@$L $(NAME)
+	@$B $(NAME)
+	@$B $(NAME)
 	@$L $(NAME)
 	@$L $(NAME)
 	@$(MAKE) sweep
