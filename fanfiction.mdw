@@ -15,8 +15,8 @@
 
 \begin{document}
 
-\title{Homework 3}
-\shorttitle{Homework 3}
+\title{Final Project: Computational Approaches to Fanfiction}
+\shorttitle{Final}
 \author{Edward Hern\'{a}ndez}
 \date{23 March 2016}
 \affiliation{College of William \& Mary}
@@ -41,15 +41,17 @@ in/for Python 3, and is intended for and tested under only
 	primarily run against 1.2.0dev2, the current development branch on github.
 }
 
-Resolving the dependencies for this code is non-trivial.
-Ideally, \href{pip} should be able to handle the dependencies:
+Resolving the dependencies for this code is non-trivial.  Ideally,
+\href{https://pypi.python.org/pypi/pip}{pip} should be able to handle the
+dependencies:
 
 \inputminted{bash}{pip.sh}
 
 \noindent
 
 There are some issues with using pip, however. If you are using an operating
-system with a package manager, you \href{}{may} wish to allow that package
+system with a package manager, you
+\href{http://unix.stackexchange.com/a/76390}{may} wish to allow that package
 manager to handle the packages which constitute your Python environment.
 %
 If this is your preference, this code presents an unusual complication. It
@@ -58,16 +60,18 @@ ahead of the stable versions packaged for your OS) and on some Python modules
 that are not packaged for most\footnote{
 	Arch Linux is likely the only exception, as I have personally published
 	\href{}{packages} to satisfy all dependencies the distribution lacked.
-} operating systems.
+}
+operating systems.
 %
 As a result, you may not want to attempt to alter your Python installation to
 accomodate this program.
 %
-Additionally, if you are running OS X, pip will likely fail building
-\href{}{lxml} (a dependency of Scrapy), since OS X does not ship libxml by
-default. This can usually be solved by (re)installing the Xcode command line
-tools: \mintinline{bash}{xcode-select install}. However, this is not always
-successful.  
+Additionally, if you are running OS X, pip is
+\href{http://stackoverflow.com/questions/19548011/cannot-install-lxml-on-mac-os-x-10-9}{likely
+to fail} building lxml (a dependency of Scrapy), since OS X does not ship
+libxml by default. This can often be solved by (re)installing the Xcode command
+line tools: \mintinline{bash}{xcode-select install}. However, this is not
+always successful.  
 
 In either case, the best solution is probably virtualization. The following
 Dockerfiles are minimally sufficient to create suitable environments in Ubuntu
@@ -125,6 +129,11 @@ from twisted.internet import reactor
 from w3lib.html import remove_tags
 import json
 import re
+
+try:
+    from string import strip
+except:
+    strip = str.strip
 @
 % }}}
 
@@ -134,26 +143,26 @@ which is used to collect scraped data. The following code defines an
 \texttt{StoryItem} class to hold information about stories. Each chapter of
 each story in the corpus will be stored as a separate text (\texttt{body}) with
 a \texttt{title}, an \texttt{author}, a description or summary (\texttt{desc}),
-the topic or \texttt{theme} of the story, its \texttt{page} or chapter number
-within a larger work, the \texttt{site} it was scraped from, and the
-\texttt{url} from which it was scraped.
-
-% I may further define items for each site (inheriting the StoryItem class) for
-% extra data
+the \texttt{category} of the story, its \texttt{chapter} number within a larger
+work, the \texttt{site} it was scraped from, and the \texttt{url} from which it
+was scraped.
 
 % story_item {{{
 <<story_item>>=
 class StoryItem(Item):
-    title    = Field()
     author   = Field()
-    desc     = Field()
     body     = Field()
-    url      = Field()
-    site     = Field()
-    chapter  = Field()
     category = Field()
+    chapter  = Field()
+    desc     = Field()
+    site     = Field()
+    title    = Field()
+    url      = Field()
 @
 % }}}
+
+\url{literotica.com} only provides the above information, so there is no need to
+extend the \texttt{StoryItem} class to capture literotica stories. 
 
 % le_item {{{
 <<le_item>>=
@@ -527,7 +536,7 @@ class AOSpider(Spider):
 
     def parse_story(self, response):
         next = response.xpath(
-            'a[contains(text(), "Next Chapter →")]/@href'
+            'a[contains(text(), "Next Chapter ")]/@href'
         )
         for href in next:
             extension = '?view_adult=true&style=disable'
