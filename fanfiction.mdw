@@ -3,14 +3,15 @@
 
 \documentclass[man,12pt,natbib]{apa6}
 \usepackage[colorlinks=true]{hyperref}
+\usepackage[toc,page]{appendix}
 \usepackage{amssymb,amsmath,times,minted}
 \linespread{1.5}
 
 \hypersetup{
 	colorlinks,
 	citecolor=black,
-	linkcolor=red,
-	urlcolor=blue
+	linkcolor=black,
+	urlcolor=red
 }
 
 \begin{document}
@@ -22,7 +23,16 @@
 \affiliation{College of William \& Mary}
 \maketitle
 
-\section{The Program}
+\tableofcontents
+\clearpage
+
+\section{Questions}
+
+
+
+\section{Answers}
+
+\subsection{The Program}
 
 This document is a
 \href{http://www.literateprogramming.com/knuthweb.pdf}{literate} Python program
@@ -30,8 +40,10 @@ inset within a \href{https://www.latex-project.org}{\LaTeX} document, woven and
 executed using \href{http://mpastell.com/pweave/}{Pweave} and typeset using
 \href{https://www.tug.org/applications/pdftex}{pdf{\TeX}} This code is written
 in/for Python 3, and is intended for and tested under only
-\href{https://www.python.org/downloads/releases/351}{version 3.5.1}.  It uses
-\href{http://www.nltk.org}{nltk} to analyze corpora built using
+\href{https://www.python.org/downloads/releases/351}{version 3.5.1}.\footnote{
+	It \emph{may} run against Pthon 2.7, but this was not a goal.
+}
+It uses \href{http://www.nltk.org}{nltk} to analyze corpora built using
 \href{http://scrapy.org}{Scrapy}
 (\href{https://blog.scrapinghub.com/2016/02/04/python-3-support-with-scrapy-1-1rc1/}{$\geq$1.1.0rc1}).\footnote{
 	Scrapy's stable release
@@ -57,11 +69,10 @@ manager to handle the packages which constitute your Python environment.
 If this is your preference, this code presents an unusual complication. It
 relies on both bleeding-edge versions of several Python packages (likely to be
 ahead of the stable versions packaged for your OS) and on some Python modules
-that are not packaged for most\footnote{
-	Arch Linux is likely the only exception, as I have personally published
-	\href{}{packages} to satisfy all dependencies the distribution lacked.
+that are not packaged for most operating systems.\footnote{
+	We have created \href{http://github.com/syntactician/pkgbuilds}{builds} for all
+	the necessary packages for Arch Linux.
 }
-operating systems.
 %
 As a result, you may not want to attempt to alter your Python installation to
 accomodate this program.
@@ -74,30 +85,23 @@ line tools: \mintinline{bash}{xcode-select install}. However, this is not
 always successful.  
 
 In either case, the best solution is probably virtualization. The following
-Dockerfiles are minimally sufficient to create suitable environments in Ubuntu
-16.04 Xerial Xerus (which must still rely on pip) and Arch Linux (which is
-altogether more intensive to set up), respectively.\footnote{
+Dockerfile is minimally sufficient to a suitable environments in Ubuntu
+16.04 Xerial Xerus (which must still rely on pip).\footnote{
 	Virtualenv is another good solution to avoid altering your Python
 	installation, but cannot be used to satisfy the dependence on libxml, since
 	it manages only Python-internal dependencies.
 }
 
-Ubuntu:
-
 \inputminted{docker}{ubuntu.docker}
 
-Arch Linux:
+This Dockerfile installs the following dependencies, against which the code has
+been tested to run on Ubuntu 16.04:
 
-\inputminted{docker}{arch.docker}
-
-% This Dockerfile installs the following dependencies, against which the code has
-% been tested to run on Ubuntu 16.04:
-
-% \inputminted{python}{requirements.txt}
+\inputminted{python}{requirements.txt}
 
 
 
-\section{Building Corpora with \href{http://scrapy.org}{Scrapy}}
+\subsection{Building Corpora with \href{http://scrapy.org}{Scrapy}}
 
 Import stuff:
 
@@ -140,9 +144,10 @@ except:
 Scrapy provides an
 \texttt{\href{http://doc.scrapy.org/en/latest/topics/items.html}{Item}} class
 which is used to collect scraped data. The following code defines an
-\texttt{StoryItem} class to hold information about stories. Each chapter of
-each story in the corpus will be stored as a separate text (\texttt{body}) with
-a \texttt{title}, an \texttt{author}, a description or summary (\texttt{desc}),
+\texttt{StoryItem} class, as an expansion of \texttt{Item}, to hold information
+about stories. Each chapter of each story in the corpus will be stored as an
+object of class \texttt{StoryItem}, containing its full text (\texttt{body}),
+its \texttt{title}, \texttt{author}, a description or summary (\texttt{desc}),
 the \texttt{category} of the story, its \texttt{chapter} number within a larger
 work, the \texttt{site} it was scraped from, and the \texttt{url} from which it
 was scraped.
@@ -169,6 +174,14 @@ extend the \texttt{StoryItem} class to capture literotica stories.
 @
 % }}}
 
+\url{fanfiction.net} provides slightly more, so we ought expand the class to
+contain more information:\footnote{
+    This object currently specifies more data than we have been able to
+    satisfactorily scrape from fanfiction.net. It was my intent to collect all
+    of this information, but it would have taken too much additional time, due
+    to the extraordinarily poor and inconsistent html of fanfiction.net.
+}
+
 % ff_item {{{
 <<ff_item>>=
 class FFItem(StoryItem):
@@ -186,6 +199,9 @@ class FFItem(StoryItem):
 @
 % }}}
 
+Archive of Our Own provides all the same information as fanfiction.net, with
+some additions:
+
 % ao_item {{{
 <<ao_item>>=
 class AOItem(FFItem):
@@ -198,7 +214,6 @@ class AOItem(FFItem):
 @
 % }}}
 
-% consider putting below spiders
 Scrapy provides an API by which data can be loaded into an \texttt{Item} via an
 \texttt{\href{http://doc.scrapy.org/en/latest/topics/loaders.html}{ItemLoader}}.
 The code below specifies a \texttt{StoryItemLoader} (which inherits the
@@ -206,7 +221,8 @@ The code below specifies a \texttt{StoryItemLoader} (which inherits the
 two classes which inherit it, to load particular data from specific websites.
 
 In cases where both the \texttt{StoryItemLoader} and one of the child classes
-specify a field (e.g. \texttt{body\_out}), the child class supersedes the parent.
+specify a field (e.g. \texttt{body\_out}), the child class definition
+supersedes the parent.
 
 These loaders cannot be written before the \texttt{Spider}s defined below, as
 they operate on the output of those Spiders (and thus depend necessarily for
@@ -216,19 +232,17 @@ because they must exist to be called by the Spiders.
 % item loaders {{{
 <<item_loader>>=
 class StoryItemLoader(ItemLoader):
-    default_input_processor  = MapCompose(str.strip)
+    default_input_processor  = MapCompose(strip)
     default_output_processor = TakeFirst()
 
     body_in  = MapCompose(remove_tags)
     body_out = Join()
 
 class FFItemLoader(StoryItemLoader):
-    # desc_out = Join()
     desc_in  = MapCompose(remove_tags)
     desc_out = Join()
 
 class AOItemLoader(StoryItemLoader):
-    body_out       = Join()
     category_out   = Join(', ')
     warnings_out   = Join(', ')
     fandom_out     = Join(', ')
@@ -238,9 +252,10 @@ class AOItemLoader(StoryItemLoader):
 @
 % }}}
 
-Pipe the scraped text into Json items on the lines of a file (one file per
-spider). 
-% consider putting below spiders
+The following code specifies an
+\texttt{href{http://doc.scrapy.org/en/latest/topics/item-pipeline.html}{Item
+        Pipeline}} class to serialize our data in text files, in which each
+line is a \href{http://www.json.org}{json} object representing a single chapter.
 
 % pipeline {{{
 <<pipeline>>=
@@ -494,6 +509,7 @@ class LESpider(Spider):
 % }}}
 
 Spider for \href{https://archiveofourown.org/}{AO3}:
+
 % ao3 spider {{{
 <<ao3_spider>>=
 class AOSpider(Spider):
@@ -625,9 +641,10 @@ class AOSpider(Spider):
 @
 % }}}
 
-I haven't yet figured out what signal the spiders should send to avoid shutting
+We haven't yet figured out what signal the spiders should send to avoid shutting
 down the reactor (which cannot be restarted) before all three are finished (if
 they are all run together).
+
 % callback {{{
 <<callback>>=
 # callback fired when the spider is closed
@@ -656,47 +673,24 @@ settings.set(
 
 % crawl {{{
 <<crawl_display, evaluate=False>>=
-# instantiate a spider
-ff_spider = FFSpider()
-le_spider = LESpider()
-ao_spider = AOSpider()
-
-# instantiate a crawler passing in settings
-# crawler = Crawler(settings)
-ff_crawler = Crawler(ff_spider, settings)
-le_crawler = Crawler(le_spider, settings)
-ao_crawler = Crawler(ao_spider, settings)
-# configure signals
-ff_crawler.signals.connect(
-    callback, 
-    signal = signals.spider_closed
-)
-le_crawler.signals.connect(
-    callback,
-    signal = signals.spider_closed
-)
-ao_crawler.signals.connect(
-    callback,
-    signal = signals.spider_closed
-)
-
-# configure and start the crawler
-# crawler.configure()
-# crawler.crawl(spider)
-# ff_crawler.crawl()
-# le_crawler.crawl()
-ao_crawler.crawl()
-
-# start logging
-# log.start()
-log.configure_logging()
-
-# start the reactor (blocks execution)
-reactor.run()
+for Spider in [ff_spider, ao_spider]:
+    spider = Spider()
+    crawler = Crawler(spider, settings)
+    crawler.signals.connect(
+        callback,
+        signal = signals.spider_closed
+    )
+    crawler.crawl()
+    log.configure_logging()
+    reactor.run()
 @
 % }}}
 
-\section{Analysis with \href{http://www.nltk.org}{NLTK}}
+\subsection{Analysis with \href{http://www.nltk.org}{NLTK}}
+
+% exceptions {{{
+class StoryException(Exception): pass
+% }}}
 
 % shared_objects {{{
 <<shared>>=
@@ -714,8 +708,6 @@ real_words    = []
 dir = 'hp'
 
 for path in glob("hp/*.txt"):
-        # soup = BeautifulSoup(open(path))
-        # chapter = soup.findAll(text=True)[0]
         file = open(path)
         chapter = file.read()
         chapter_tuple = (chapter, 'real')
@@ -726,7 +718,6 @@ for path in glob("hp/*.txt"):
         real_words.extend(words)
 
 word_total  = len(real_words)
-harry_total = real_words.count('harry')
 
 fd = FreqDist(real_words)
 fd.plot(26)
@@ -756,8 +747,7 @@ AO3_normed  = []
 
 for line in file.readlines():
     chapter_obj = loads(line)
-    if chapter_obj['language'] == 'English':
-        try:
+    if chapter_obj['body'] and chapter_obj['language'] == 'English':
             chapter = chapter_obj['body']
             chapter_tuple = (chapter, 'fake')
             words = [ w.lower() for w in word_tokenize(chapter) ]
@@ -765,26 +755,6 @@ for line in file.readlines():
             ao_chapters.append(chapter_tuple)
             if len(AO3) < word_total:
                 AO3.extend(words)
-            if AO3_normed.count('harry') < harry_total:
-                AO3_normed.extend(words)
-        except:
-            pass
-
-# i = 1100
-# for line in file.readlines():
-#     if i > 0:
-#         chapter_obj = loads(line)
-#         if chapter_obj['language'] == 'English':
-#             try:
-#                 chapter = chapter_obj['body']
-#                 chapter_tuple = (chapter, 'fake')
-#                 words = word_tokenize(chapter)
-#                 ao_words.extend(words)
-#                 ao_chapters.append(chapter_tuple)
-#                 AO3.extend(words)
-#             except:
-#                 pass
-#     i += 1
 
 fd = FreqDist(ao_words)
 fd.plot(26)
@@ -810,10 +780,9 @@ ff_words          = []
 fanfiction        = []
 fanfiction_normed = []
 
-# i = 950
 for line in file.readlines():
     chapter_obj = loads(line)
-    try:
+    if chapter_obj['body']:
         chapter = chapter_obj['body']
         chapter_tuple = (chapter, 'fake')
         words = [ w.lower() for w in word_tokenize(chapter) ]
@@ -821,25 +790,6 @@ for line in file.readlines():
         ff_chapters.append(chapter_tuple)
         if len(fanfiction) < word_total:
             fanfiction.extend(words)
-        if fanfiction_normed.count('harry') < harry_total:
-            fanfiction_normed.extend(words)
-    except:
-        pass
-
-# i = 950
-# for line in file.readlines():
-#     if i > 0:
-#         chapter_obj = loads(line)
-#         try:
-#             chapter = chapter_obj['body']
-#             chapter_tuple = (chapter, 'fake')
-#             words = word_tokenize(chapter)
-#             ff_words.extend(words)
-#             ff_chapters.append(chapter_tuple)
-#             fanfiction.extend(words)
-#         except:
-#             pass
-#         i -= 1
 
 fd = FreqDist(ff_words)
 fd.plot(26)
@@ -968,30 +918,16 @@ cfd = ConditionalFreqDist(unified_words)
 
 cfd.plot()
 @
-
-<<cfd_normed>>=
-# AO3_normed = [ w.lower() for w in AO3_normed if w.isalpha() ]
-# AO3_normed = [ w for w in AO3_normed if w not in stop ]
-
-# fanfiction_normed = [ w.lower() for w in fanfiction_normed if w.isalpha() ]
-# fanfiction_normed = [ w for w in fanfiction_normed if w not in stop ]
-
-unified_words = (
-    (source, word)
-    for source in (
-        'Rowling',
-        'AO3_normed',
-        'fanfiction_normed'
-    )
-    for word in eval(source)
-	if word in names
-)
-cfd = ConditionalFreqDist(unified_words)
-cfd.plot()
-@
 % }}}
 
-\section{Training a \href{https://pypi.python.org/pypi/ChatterBot}{ChatterBot}}
+\begin{appendices}
+\subsection{Training a \href{https://pypi.python.org/pypi/ChatterBot}{ChatterBot}}
+
+For fun, we tried to implement a chatbot that drew its responses from reported
+speech in the stories from the corpus.
+
+Here we create an untrained chatbot and trian it on the (tiny) corpus that ships
+with the chatterbot package.
 
 % chatbot_creation {{{
 <<chatbot_creation>>=
@@ -999,26 +935,31 @@ chatbot = ChatBot(
     "Mary Sue",
     io_adapter = "chatterbot.adapters.io.NoOutputAdapter"
 )
-# chatbot.train("chatterbot.corpus.english")
+chatbot.train("chatterbot.corpus.english")
 @
 % }}}
 
+We then split stories at double quotes and then train the bot on all
+odd-numbered indices (which should all between quotes). This will take quite a
+long time, and create an absolutely huge database.
+
 % training {{{
 <<training_display, evaluate=False>>=
-file = open('le_products.jl')
+for path in glob("*_stories.txt"):
+    file = open(path)
 
-for line in file.readlines():
-    conversation = []
-    story = json.loads(line)
-    body = story['body']
-    graphs = body.split('\n')
-    for graph in graphs:
-        speech = graph.split('"')[1::2]
-        utterance = ' '.join(speech)
-        if utterance:
-            conversation.append(utterance)
-    if conversation:
-        chatbot.train(conversation)
+    for line in file.readlines():
+        conversation = []
+        story = json.loads(line)
+        body = story['body']
+        graphs = body.split('\n')
+        for graph in graphs:
+            speech = graph.split('"')[1::2]
+            utterance = ' '.join(speech)
+            if utterance:
+                conversation.append(utterance)
+        if conversation:
+            chatbot.train(conversation)
 @
 % }}}
 
@@ -1031,9 +972,13 @@ print(
 % }}}
 
 Unfortunately, once the chatbot has been trained on a decent amount of data, it
-becomes unusably slow. This is almost certainly a result of its storage method
-(a flat database stored to disk) and the nature of its implementation (in
-Python).
+becomes unusably slow (even with better Levenshtein distance algorithms). This
+is almost certainly a result of its storage method (a flat, plain-text database
+stored to disk) and the nature of its implementation (in Python, not compiled).
+
+If we were to seek to implement this in a useful way, we would have to
+implement a much cleverer logic, inferring categories, hypernyms, etc.
+\end{appendices}
 
 \nocite{*}
 
